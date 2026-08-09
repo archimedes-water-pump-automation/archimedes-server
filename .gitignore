@@ -1,0 +1,4 @@
+.env
+.vscode
+worker.log
+__debug*
