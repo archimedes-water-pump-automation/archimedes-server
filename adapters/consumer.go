@@ -1,8 +1,8 @@
 package adapters
 
 import (
-	"archimedes-worker/core/log"
-	"archimedes-worker/core/processor"
+	"archimedes-server/core/log"
+	"archimedes-server/core/processor"
 	"context"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"

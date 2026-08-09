@@ -13,17 +13,17 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
-	"archimedes-worker/adapters"
-	healthserver "archimedes-worker/cmd/health-server"
-	"archimedes-worker/core/log"
-	"archimedes-worker/core/processor"
+	"archimedes-server/adapters"
+	"archimedes-server/cmd/webserver"
+	"archimedes-server/core/log"
+	"archimedes-server/core/processor"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
 	server   = "tcp://localhost:1883"
-	clientID = "archimedes-worker-subscriber"
+	clientID = "archimedes-server-subscriber"
 )
 
 var (
@@ -47,8 +47,9 @@ func main() {
 	}
 	defer pool.Close()
 
-	repository := adapters.NewTankRepository(pool)
-	processor := processor.NewProcessTankStreamUseCase(repository)
+	updateRepository := adapters.NewUpdateTankRepository(pool)
+	readRepository := adapters.NewReadTankRepository(pool)
+	processor := processor.NewProcessTankStreamUseCase(updateRepository)
 
 	consumer := adapters.NewStreamConsumer(client, topic, mqttMsgChan)
 	if consumer == nil {
@@ -57,7 +58,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go healthserver.Serve()
+	go webserver.Serve(readRepository)
 
 	go func() {
 		defer wg.Done()

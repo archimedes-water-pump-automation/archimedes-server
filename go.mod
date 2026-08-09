@@ -1,4 +1,4 @@
-module archimedes-worker
+module archimedes-server
 
 go 1.25.3
 

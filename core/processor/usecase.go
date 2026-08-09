@@ -1,17 +1,17 @@
 package processor
 
 import (
-	"archimedes-worker/core/log"
-	"archimedes-worker/core/tank"
+	"archimedes-server/core/log"
+	"archimedes-server/core/tank"
 	"context"
 	"encoding/json"
 )
 
 type ProcessTankStreamUseCase struct {
-	repository tank.ITankRepository
+	repository tank.IUpdateTank
 }
 
-func NewProcessTankStreamUseCase(repository tank.ITankRepository) *ProcessTankStreamUseCase {
+func NewProcessTankStreamUseCase(repository tank.IUpdateTank) *ProcessTankStreamUseCase {
 	return &ProcessTankStreamUseCase{
 		repository: repository,
 	}

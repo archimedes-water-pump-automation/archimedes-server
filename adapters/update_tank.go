@@ -8,17 +8,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type tankRepository struct {
+type updateTankRepository struct {
 	pool *pgxpool.Pool
 }
 
-func NewTankRepository(pool *pgxpool.Pool) *tankRepository {
-	return &tankRepository{
+func NewUpdateTankRepository(pool *pgxpool.Pool) *updateTankRepository {
+	return &updateTankRepository{
 		pool: pool,
 	}
 }
 
-func (repository *tankRepository) UpdateVolume(ctx context.Context, tankID int64, newVolume float64, updatedAt time.Time) error {
+func (repository *updateTankRepository) UpdateVolume(ctx context.Context, tankID string, newVolume float64, updatedAt time.Time) error {
 	connection, err := repository.pool.Acquire(ctx)
 	if err != nil {
 		return err
