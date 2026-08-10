@@ -1,4 +1,4 @@
-package adapters
+package log_file
 
 import (
 	"log"

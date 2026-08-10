@@ -1,24 +1,24 @@
-package adapters
+package postgresql
 
 import (
-	"archimedes-server/core/pump"
+	"archimedes-server/core/tank"
 	"context"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type readPumpStatusRepository struct {
+type readTankRepository struct {
 	pool *pgxpool.Pool
 }
 
-func NewReadPumpStatusRepository(pool *pgxpool.Pool) *readPumpStatusRepository {
-	return &readPumpStatusRepository{
+func NewReadTankRepository(pool *pgxpool.Pool) *readTankRepository {
+	return &readTankRepository{
 		pool: pool,
 	}
 }
 
-func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps []pump.Pump, err error) {
+func (repository *readTankRepository) GetTanks(ctx context.Context) (tankNames []tank.TankSummary, err error) {
 	connection, err := repository.pool.Acquire(ctx)
 	if err != nil {
 		return nil, err
@@ -27,10 +27,10 @@ func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps
 
 	rows, err := connection.Query(ctx, `
 		SELECT
-			id,
-			name
+			name,
+			id
 		FROM
-			archimedes.pump;
+			archimedes.water_tank;
 	`)
 
 	if err != nil {
@@ -38,38 +38,36 @@ func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps
 	}
 	defer rows.Close()
 
-	err = pgxscan.ScanAll(&pumps, rows)
+	err = pgxscan.ScanAll(&tankNames, rows)
 	if err != nil {
 		return nil, err
 	}
 
-	return pumps, nil
+	return tankNames, nil
 }
 
-func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, pumpID string) (*pump.PumpStatus, error) {
+func (repository *readTankRepository) GetTankByID(ctx context.Context, tankID string) (*tank.Tank, error) {
 	connection, err := repository.pool.Acquire(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer connection.Release()
 
-	var pumpStatus pump.PumpStatus
+	var waterTank tank.Tank
 
 	rows, err := connection.Query(ctx, `
 		SELECT
 			id,
-			pump_id,
-			started_at,
-			stopped_at,
-			stop_reason
+			name,
+			capacity,
+			current_volume,
+			created_at,
+			updated_at
 		FROM
-			archimedes.pump_status
+			archimedes.water_tank
 		WHERE
-			pump_id = $1
-		ORDER BY
-			started_at DESC
-		LIMIT 1;
-	`, pumpID)
+			id = $1;
+	`, tankID)
 
 	if err != nil {
 		if err.Error() == "sql: no rows in result set" {
@@ -79,10 +77,10 @@ func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, p
 	}
 	defer rows.Close()
 
-	err = pgxscan.ScanOne(&pumpStatus, rows)
+	err = pgxscan.ScanOne(&waterTank, rows)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pumpStatus, nil
+	return &waterTank, nil
 }

@@ -1,4 +1,4 @@
-package adapters
+package mqtt
 
 import (
 	"archimedes-server/core/log"

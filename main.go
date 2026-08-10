@@ -13,8 +13,10 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
-	"archimedes-server/adapters"
-	"archimedes-server/cmd/webserver"
+	"archimedes-server/adapters/http"
+	"archimedes-server/adapters/log_file"
+	mqtt_adapter "archimedes-server/adapters/mqtt"
+	"archimedes-server/adapters/postgresql"
 	"archimedes-server/core/log"
 	"archimedes-server/core/processor"
 
@@ -40,7 +42,7 @@ func main() {
 	var tankStreamChannel = make(chan mqtt.Message)
 	var pumpStatusChannel = make(chan mqtt.Message)
 
-	log.SetLogger(adapters.NewLogger())
+	log.SetLogger(log_file.NewLogger())
 
 	tankStreamClient := NewClient(tankStreamChannel, clientIDTank)
 	pumpStatusClient := NewClient(pumpStatusChannel, clientIDPump)
@@ -51,22 +53,22 @@ func main() {
 	}
 	defer pool.Close()
 
-	updateTankProcessor := processor.NewProcessTankUpdate(adapters.NewUpdateTankRepository(pool))
-	updatePumpProcessor := processor.NewProcessPumpStatusUpdate(adapters.NewUpdatePumpStatusRepository(pool))
+	updateTankProcessor := processor.NewProcessTankUpdate(postgresql.NewUpdateTankRepository(pool))
+	updatePumpProcessor := processor.NewProcessPumpStatusUpdate(postgresql.NewUpdatePumpStatusRepository(pool))
 
-	waterTankConsumer := adapters.NewStreamConsumer(tankStreamClient, waterTankTopic, tankStreamChannel)
+	waterTankConsumer := mqtt_adapter.NewStreamConsumer(tankStreamClient, waterTankTopic, tankStreamChannel)
 	if waterTankConsumer == nil {
 		panic(errors.New("Failed to create stream water tank consumer"))
 	}
 
-	pumpStatusConsumer := adapters.NewStreamConsumer(pumpStatusClient, pumpStatusTopic, pumpStatusChannel)
+	pumpStatusConsumer := mqtt_adapter.NewStreamConsumer(pumpStatusClient, pumpStatusTopic, pumpStatusChannel)
 	if pumpStatusConsumer == nil {
 		panic(errors.New("Failed to create stream pump status consumer"))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go webserver.Serve(adapters.NewReadTankRepository(pool), adapters.NewReadPumpStatusRepository(pool))
+	go http.Serve(postgresql.NewReadTankRepository(pool), postgresql.NewReadPumpStatusRepository(pool))
 
 	go func() {
 		defer wg.Done()

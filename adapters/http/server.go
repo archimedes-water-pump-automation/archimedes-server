@@ -1,4 +1,4 @@
-package webserver
+package http
 
 import (
 	"archimedes-server/core/log"
