@@ -7,18 +7,18 @@ import (
 	"encoding/json"
 )
 
-type ProcessTankStreamUseCase struct {
+type ProcessTankUpdate struct {
 	repository tank.IUpdateTank
 }
 
-func NewProcessTankStreamUseCase(repository tank.IUpdateTank) *ProcessTankStreamUseCase {
-	return &ProcessTankStreamUseCase{
+func NewProcessTankUpdate(repository tank.IUpdateTank) *ProcessTankUpdate {
+	return &ProcessTankUpdate{
 		repository: repository,
 	}
 }
 
-func (u *ProcessTankStreamUseCase) Process(ctx context.Context, data []byte) error {
-	var event Event
+func (u *ProcessTankUpdate) Process(ctx context.Context, data []byte) error {
+	var event WaterTankEvent
 
 	err := json.Unmarshal(data, &event)
 

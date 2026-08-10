@@ -22,24 +22,28 @@ import (
 )
 
 const (
-	server   = "tcp://localhost:1883"
-	clientID = "archimedes-server-subscriber"
+	server       = "tcp://localhost:1883"
+	clientIDTank = "archimedes-server-tank-subscriber"
+	clientIDPump = "archimedes-server-pump-subscriber"
 )
 
 var (
-	topic = os.Getenv("TOPIC")
+	waterTankTopic  = os.Getenv("WATER_TANK_TOPIC")
+	pumpStatusTopic = os.Getenv("PUMP_STATUS_TOPIC")
 )
 
 func main() {
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 
 	var sigChan = make(chan os.Signal, 1)
-	var mqttMsgChan = make(chan mqtt.Message)
+	var tankStreamChannel = make(chan mqtt.Message)
+	var pumpStatusChannel = make(chan mqtt.Message)
 
 	log.SetLogger(adapters.NewLogger())
 
-	client := NewClient(mqttMsgChan)
+	tankStreamClient := NewClient(tankStreamChannel, clientIDTank)
+	pumpStatusClient := NewClient(pumpStatusChannel, clientIDPump)
 
 	pool, err := NewPool(context.Background(), os.Getenv("DB_CONN_STRING"))
 	if err != nil {
@@ -47,22 +51,31 @@ func main() {
 	}
 	defer pool.Close()
 
-	updateRepository := adapters.NewUpdateTankRepository(pool)
-	readRepository := adapters.NewReadTankRepository(pool)
-	processor := processor.NewProcessTankStreamUseCase(updateRepository)
+	updateTankProcessor := processor.NewProcessTankUpdate(adapters.NewUpdateTankRepository(pool))
+	updatePumpProcessor := processor.NewProcessPumpStatusUpdate(adapters.NewUpdatePumpStatusRepository(pool))
 
-	consumer := adapters.NewStreamConsumer(client, topic, mqttMsgChan)
-	if consumer == nil {
-		panic(errors.New("Failed to create stream consumer"))
+	waterTankConsumer := adapters.NewStreamConsumer(tankStreamClient, waterTankTopic, tankStreamChannel)
+	if waterTankConsumer == nil {
+		panic(errors.New("Failed to create stream water tank consumer"))
+	}
+
+	pumpStatusConsumer := adapters.NewStreamConsumer(pumpStatusClient, pumpStatusTopic, pumpStatusChannel)
+	if pumpStatusConsumer == nil {
+		panic(errors.New("Failed to create stream pump status consumer"))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go webserver.Serve(readRepository)
+	go webserver.Serve(adapters.NewReadTankRepository(pool), adapters.NewReadPumpStatusRepository(pool))
 
 	go func() {
 		defer wg.Done()
-		consumer.Consume(ctx, processor)
+		waterTankConsumer.Consume(ctx, updateTankProcessor)
+	}()
+
+	go func() {
+		defer wg.Done()
+		pumpStatusConsumer.Consume(ctx, updatePumpProcessor)
 	}()
 
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -74,26 +87,26 @@ func main() {
 	log.Log("Archimedes terminated, exiting...")
 }
 
-func NewClient(inputChannel chan mqtt.Message) mqtt.Client {
+func NewClient(inputChannel chan mqtt.Message, clientID string) mqtt.Client {
 
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(server)
 	opts.SetClientID(clientID)
-	opts.SetDefaultPublishHandler(func(client mqtt.Client, msg mqtt.Message) {
+	opts.SetDefaultPublishHandler(func(tankStreamClient mqtt.Client, msg mqtt.Message) {
 		inputChannel <- msg
 	})
-	opts.OnConnect = func(client mqtt.Client) {
+	opts.OnConnect = func(tankStreamClient mqtt.Client) {
 		log.Log("Connected to MQTT Broker")
 	}
-	opts.OnConnectionLost = func(client mqtt.Client, err error) {
+	opts.OnConnectionLost = func(tankStreamClient mqtt.Client, err error) {
 		log.Log("Connection lost: " + err.Error())
 	}
 
-	client := mqtt.NewClient(opts)
-	if token := client.Connect(); token.Wait() && token.Error() != nil {
+	tankStreamClient := mqtt.NewClient(opts)
+	if token := tankStreamClient.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
-	return client
+	return tankStreamClient
 }
 
 func NewPool(ctx context.Context, connString string) (*pgxpool.Pool, error) {

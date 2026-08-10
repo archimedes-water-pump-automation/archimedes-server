@@ -3,6 +3,7 @@ package tank
 import "time"
 
 type Tank struct {
+	ID        string    `db:"id" json:"id"`
 	Name      string    `db:"name" json:"name"`
 	Capacity  float64   `db:"capacity" json:"capacity"`
 	Volume    float64   `db:"current_volume" json:"current_volume"`
