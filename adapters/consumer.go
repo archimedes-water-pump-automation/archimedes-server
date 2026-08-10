@@ -36,7 +36,7 @@ func NewStreamConsumer(client mqtt.Client, topic string, inputChannel <-chan mqt
 	}
 }
 
-func (consumer *streamConsumer) Consume(ctx context.Context, processTankStream processor.IProcessTankStream) {
+func (consumer *streamConsumer) Consume(ctx context.Context, processTankStream processor.IProcessStream) {
 	for {
 		select {
 		case msg, ok := <-consumer.input:
