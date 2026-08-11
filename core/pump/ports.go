@@ -13,4 +13,5 @@ type IUpdatePumpStatus interface {
 type IReadPumpStatus interface {
 	GetPumps(ctx context.Context) ([]Pump, error)
 	GetPumpStatus(ctx context.Context, pumpID string) (*PumpStatus, error)
+	GetPumpStatusHistory(ctx context.Context, pumpID string) ([]PumpStatus, error)
 }

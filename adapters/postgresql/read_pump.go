@@ -86,3 +86,43 @@ func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, p
 
 	return &pumpStatus, nil
 }
+
+func (repository *readPumpStatusRepository) GetPumpStatusHistory(ctx context.Context, pumpID string) ([]pump.PumpStatus, error) {
+	connection, err := repository.pool.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer connection.Release()
+
+	var pumpStatus []pump.PumpStatus
+
+	rows, err := connection.Query(ctx, `
+		SELECT
+			id,
+			pump_id,
+			started_at,
+			stopped_at,
+			stop_reason
+		FROM
+			archimedes.pump_status
+		WHERE
+			pump_id = $1
+		ORDER BY
+			started_at DESC;
+	`, pumpID)
+
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return nil, nil
+		}
+		return nil, err
+	}
+	defer rows.Close()
+
+	err = pgxscan.ScanAll(&pumpStatus, rows)
+	if err != nil {
+		return nil, err
+	}
+
+	return pumpStatus, nil
+}

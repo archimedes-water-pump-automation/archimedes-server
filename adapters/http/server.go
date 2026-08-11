@@ -121,6 +121,34 @@ func Serve(readTankRepository tank.IReadTank, readPumpStatusRepository pump.IRea
 		fmt.Fprint(w, string(response))
 	})
 
+	mux.HandleFunc("GET /read/pump/{id}/historic", func(w http.ResponseWriter, r *http.Request) {
+		pumpID := r.PathValue("id")
+
+		pumpStatusData, err := readPumpStatusRepository.GetPumpStatusHistory(r.Context(), pumpID)
+
+		if err != nil {
+			log.Log("Failed to get pumps: " + err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if pumpStatusData == nil {
+			log.Log("Pump not found: " + pumpID)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		response, err := json.Marshal(pumpStatusData)
+
+		if err != nil {
+			log.Log("Failed to marshal pump: " + err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, string(response))
+	})
+
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: mux,
