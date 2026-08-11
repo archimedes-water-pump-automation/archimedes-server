@@ -42,7 +42,7 @@ func main() {
 	var tankStreamChannel = make(chan mqtt.Message)
 	var pumpStatusChannel = make(chan mqtt.Message)
 
-	log.SetLogger(log_file.NewLogger())
+	log.SetLogger(log_file.NewLogger(os.Getenv("LOG_FILE")))
 
 	tankStreamClient := NewClient(tankStreamChannel, clientIDTank)
 	pumpStatusClient := NewClient(pumpStatusChannel, clientIDPump)
@@ -68,7 +68,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go http.Serve(postgresql.NewReadTankRepository(pool), postgresql.NewReadPumpStatusRepository(pool))
+	go http.Serve("8080", postgresql.NewReadTankRepository(pool), postgresql.NewReadPumpStatusRepository(pool))
 
 	go func() {
 		defer wg.Done()

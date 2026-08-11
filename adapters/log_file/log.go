@@ -9,8 +9,8 @@ type logger struct {
 	log *log.Logger
 }
 
-func NewLogger() *logger {
-	f, err := os.OpenFile(os.Getenv("LOG_FILE"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func NewLogger(log_file string) *logger {
+	f, err := os.OpenFile(log_file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil
 	}
