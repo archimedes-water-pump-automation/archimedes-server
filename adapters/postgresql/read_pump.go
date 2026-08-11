@@ -4,28 +4,21 @@ import (
 	"archimedes-server/core/pump"
 	"context"
 
-	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type readPumpStatusRepository struct {
-	pool *pgxpool.Pool
+	pool *archimedesPool
 }
 
 func NewReadPumpStatusRepository(pool *pgxpool.Pool) *readPumpStatusRepository {
 	return &readPumpStatusRepository{
-		pool: pool,
+		pool: NewPool(pool),
 	}
 }
 
 func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps []pump.Pump, err error) {
-	connection, err := repository.pool.Acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer connection.Release()
-
-	rows, err := connection.Query(ctx, `
+	err = repository.pool.QueryArchimedes(ctx, &pumps, `
 		SELECT
 			id,
 			name
@@ -36,26 +29,14 @@ func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	err = pgxscan.ScanAll(&pumps, rows)
-	if err != nil {
-		return nil, err
-	}
 
 	return pumps, nil
 }
 
 func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, pumpID string) (*pump.PumpStatus, error) {
-	connection, err := repository.pool.Acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer connection.Release()
+	var pumpStatus []pump.PumpStatus
 
-	var pumpStatus pump.PumpStatus
-
-	rows, err := connection.Query(ctx, `
+	err := repository.pool.QueryArchimedes(ctx, &pumpStatus, `
 		SELECT
 			id,
 			pump_id,
@@ -72,31 +53,19 @@ func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, p
 	`, pumpID)
 
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			return nil, nil
-		}
 		return nil, err
 	}
-	defer rows.Close()
-
-	err = pgxscan.ScanOne(&pumpStatus, rows)
-	if err != nil {
-		return nil, err
+	if len(pumpStatus) == 0 {
+		return nil, nil
 	}
 
-	return &pumpStatus, nil
+	return &pumpStatus[0], nil
 }
 
 func (repository *readPumpStatusRepository) GetPumpStatusHistory(ctx context.Context, pumpID string) ([]pump.PumpStatus, error) {
-	connection, err := repository.pool.Acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer connection.Release()
-
 	var pumpStatus []pump.PumpStatus
 
-	rows, err := connection.Query(ctx, `
+	err := repository.pool.QueryArchimedes(ctx, &pumpStatus, `
 		SELECT
 			id,
 			pump_id,
@@ -112,17 +81,9 @@ func (repository *readPumpStatusRepository) GetPumpStatusHistory(ctx context.Con
 	`, pumpID)
 
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			return nil, nil
-		}
-		return nil, err
-	}
-	defer rows.Close()
-
-	err = pgxscan.ScanAll(&pumpStatus, rows)
-	if err != nil {
 		return nil, err
 	}
 
 	return pumpStatus, nil
+
 }

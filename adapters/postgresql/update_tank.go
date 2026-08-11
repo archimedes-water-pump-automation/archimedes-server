@@ -4,28 +4,21 @@ import (
 	"context"
 	"time"
 
-	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type updateTankRepository struct {
-	pool *pgxpool.Pool
+	pool *archimedesPool
 }
 
 func NewUpdateTankRepository(pool *pgxpool.Pool) *updateTankRepository {
 	return &updateTankRepository{
-		pool: pool,
+		pool: NewPool(pool),
 	}
 }
 
 func (repository *updateTankRepository) UpdateVolume(ctx context.Context, tankID string, newVolume float64, updatedAt time.Time) error {
-	connection, err := repository.pool.Acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer connection.Release()
-
-	rows, err := connection.Query(ctx, `
+	err := repository.pool.QueryArchimedes(ctx, tankID, `
 		UPDATE
 			archimedes.water_tank
 		SET
@@ -39,7 +32,6 @@ func (repository *updateTankRepository) UpdateVolume(ctx context.Context, tankID
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
-	return pgxscan.ScanOne(&tankID, rows)
+	return nil
 }

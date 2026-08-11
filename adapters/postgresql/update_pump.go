@@ -4,29 +4,22 @@ import (
 	"context"
 	"time"
 
-	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type updatePumpStatusRepository struct {
-	pool *pgxpool.Pool
+	pool *archimedesPool
 }
 
 func NewUpdatePumpStatusRepository(pool *pgxpool.Pool) *updatePumpStatusRepository {
 	return &updatePumpStatusRepository{
-		pool: pool,
+		pool: NewPool(pool),
 	}
 }
 
 func (repository *updatePumpStatusRepository) StartPump(ctx context.Context, pumpID string, timestamp time.Time) error {
-	connection, err := repository.pool.Acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer connection.Release()
-
-	rows, err := connection.Query(ctx, `
+	err := repository.pool.QueryArchimedes(ctx, pumpID, `
 		INSERT INTO
 			archimedes.pump_status (id, pump_id, started_at)
 		VALUES
@@ -37,19 +30,12 @@ func (repository *updatePumpStatusRepository) StartPump(ctx context.Context, pum
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
-	return pgxscan.ScanOne(&pumpID, rows)
+	return nil
 }
 
 func (repository *updatePumpStatusRepository) StopPump(ctx context.Context, pumpID string, timestamp time.Time, stopReason string) error {
-	connection, err := repository.pool.Acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer connection.Release()
-
-	rows, err := connection.Query(ctx, `
+	err := repository.pool.QueryArchimedes(ctx, pumpID, `
 		WITH status AS (
 			SELECT
 				id
@@ -75,7 +61,6 @@ func (repository *updatePumpStatusRepository) StopPump(ctx context.Context, pump
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
-	return pgxscan.ScanOne(&pumpID, rows)
+	return nil
 }

@@ -4,28 +4,21 @@ import (
 	"archimedes-server/core/tank"
 	"context"
 
-	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type readTankRepository struct {
-	pool *pgxpool.Pool
+	pool *archimedesPool
 }
 
 func NewReadTankRepository(pool *pgxpool.Pool) *readTankRepository {
 	return &readTankRepository{
-		pool: pool,
+		pool: NewPool(pool),
 	}
 }
 
 func (repository *readTankRepository) GetTanks(ctx context.Context) (tankNames []tank.TankSummary, err error) {
-	connection, err := repository.pool.Acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer connection.Release()
-
-	rows, err := connection.Query(ctx, `
+	err = repository.pool.QueryArchimedes(ctx, &tankNames, `
 		SELECT
 			name,
 			id
@@ -36,26 +29,14 @@ func (repository *readTankRepository) GetTanks(ctx context.Context) (tankNames [
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	err = pgxscan.ScanAll(&tankNames, rows)
-	if err != nil {
-		return nil, err
-	}
 
 	return tankNames, nil
 }
 
 func (repository *readTankRepository) GetTankByID(ctx context.Context, tankID string) (*tank.Tank, error) {
-	connection, err := repository.pool.Acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer connection.Release()
+	var waterTanks []tank.Tank
 
-	var waterTank tank.Tank
-
-	rows, err := connection.Query(ctx, `
+	err := repository.pool.QueryArchimedes(ctx, &waterTanks, `
 		SELECT
 			id,
 			name,
@@ -70,17 +51,11 @@ func (repository *readTankRepository) GetTankByID(ctx context.Context, tankID st
 	`, tankID)
 
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			return nil, nil
-		}
 		return nil, err
 	}
-	defer rows.Close()
-
-	err = pgxscan.ScanOne(&waterTank, rows)
-	if err != nil {
-		return nil, err
+	if len(waterTanks) == 0 {
+		return nil, nil
 	}
 
-	return &waterTank, nil
+	return &waterTanks[0], nil
 }
