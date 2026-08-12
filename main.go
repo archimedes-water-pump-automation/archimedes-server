@@ -25,7 +25,6 @@ import (
 )
 
 const (
-	server       = "tcp://localhost:1883"
 	clientIDTank = "archimedes-server-tank-subscriber"
 	clientIDPump = "archimedes-server-pump-subscriber"
 )
@@ -33,6 +32,7 @@ const (
 var (
 	waterTankTopic  = os.Getenv("WATER_TANK_TOPIC")
 	pumpStatusTopic = os.Getenv("PUMP_STATUS_TOPIC")
+	server          = os.Getenv("MQTT_BROKER_URL")
 )
 
 func main() {
