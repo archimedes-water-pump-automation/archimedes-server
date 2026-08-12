@@ -9,11 +9,13 @@ import (
 
 type ProcessTankUpdate struct {
 	repository tank.IUpdateTank
+	calculateVolume tank.ICalculateVolume
 }
 
-func NewProcessTankUpdate(repository tank.IUpdateTank) *ProcessTankUpdate {
+func NewProcessTankUpdate(repository tank.IUpdateTank, calculateVolume tank.ICalculateVolume) *ProcessTankUpdate {
 	return &ProcessTankUpdate{
 		repository: repository,
+		calculateVolume: calculateVolume,
 	}
 }
 
@@ -29,7 +31,13 @@ func (u *ProcessTankUpdate) Process(ctx context.Context, data []byte) error {
 
 	log.Log(event.EventType + " event received: " + string(data))
 
-	err = u.repository.UpdateVolume(ctx, event.TankID, event.Volume, event.Timestamp)
+	volume, err := u.calculateVolume.CalculateVolume(ctx, event.TankID, event.FluidHeight)
+	if err != nil {
+		log.Log("error on calculating tank volume: " + err.Error())
+		return err
+	}
+
+	err = u.repository.UpdateVolume(ctx, event.TankID, volume, event.Timestamp)
 
 	if err != nil {
 		log.Log("error on updating tank volume: " + err.Error())

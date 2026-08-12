@@ -19,7 +19,7 @@ func NewUpdatePumpStatusRepository(pool *pgxpool.Pool) *updatePumpStatusReposito
 }
 
 func (repository *updatePumpStatusRepository) StartPump(ctx context.Context, pumpID string, timestamp time.Time) error {
-	err := repository.pool.QueryArchimedes(ctx, pumpID, `
+	err := repository.pool.WriteArchimedes(ctx, `
 		INSERT INTO
 			archimedes.pump_status (id, pump_id, started_at)
 		VALUES
@@ -35,7 +35,7 @@ func (repository *updatePumpStatusRepository) StartPump(ctx context.Context, pum
 }
 
 func (repository *updatePumpStatusRepository) StopPump(ctx context.Context, pumpID string, timestamp time.Time, stopReason string) error {
-	err := repository.pool.QueryArchimedes(ctx, pumpID, `
+	err := repository.pool.WriteArchimedes(ctx, `
 		WITH status AS (
 			SELECT
 				id

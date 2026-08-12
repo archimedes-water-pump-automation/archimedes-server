@@ -19,6 +19,7 @@ import (
 	"archimedes-server/adapters/postgresql"
 	"archimedes-server/core/log"
 	"archimedes-server/core/processor"
+	"archimedes-server/core/tank"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -53,7 +54,9 @@ func main() {
 	}
 	defer pool.Close()
 
-	updateTankProcessor := processor.NewProcessTankUpdate(postgresql.NewUpdateTankRepository(pool))
+	readTankRepository := postgresql.NewReadTankRepository(pool)
+
+	updateTankProcessor := processor.NewProcessTankUpdate(postgresql.NewUpdateTankRepository(pool), tank.NewCalculateVolume(readTankRepository))
 	updatePumpProcessor := processor.NewProcessPumpStatusUpdate(postgresql.NewUpdatePumpStatusRepository(pool))
 
 	waterTankConsumer := mqtt_adapter.NewStreamConsumer(tankStreamClient, waterTankTopic, tankStreamChannel)
@@ -68,7 +71,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go http.Serve("8080", postgresql.NewReadTankRepository(pool), postgresql.NewReadPumpStatusRepository(pool))
+	go http.Serve("8080", readTankRepository, postgresql.NewReadPumpStatusRepository(pool))
 
 	go func() {
 		defer wg.Done()

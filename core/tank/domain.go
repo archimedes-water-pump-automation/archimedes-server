@@ -11,7 +11,13 @@ type Tank struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
-type TankSummary struct {
-	ID   string `db:"id" json:"id"`
-	Name string `db:"name" json:"name"`
+type Shape string
+
+const (
+	Cylindrical Shape = "cylindrical"
+)
+
+type TankShape struct {
+	Shape      Shape                  `db:"tank_shape" json:"tank_shape"`
+	Dimensions map[string]interface{} `db:"dimensions" json:"dimensions"`
 }

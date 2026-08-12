@@ -17,26 +17,10 @@ func NewReadTankRepository(pool *pgxpool.Pool) *readTankRepository {
 	}
 }
 
-func (repository *readTankRepository) GetTanks(ctx context.Context) (tankNames []tank.TankSummary, err error) {
-	err = repository.pool.QueryArchimedes(ctx, &tankNames, `
-		SELECT
-			name,
-			id
-		FROM
-			archimedes.water_tank;
-	`)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return tankNames, nil
-}
-
-func (repository *readTankRepository) GetTankByID(ctx context.Context, tankID string) (*tank.Tank, error) {
+func (repository *readTankRepository) GetTanks(ctx context.Context) ([]tank.Tank, error) {
 	var waterTanks []tank.Tank
 
-	err := repository.pool.QueryArchimedes(ctx, &waterTanks, `
+	err := repository.pool.ReadArchimedes(ctx, &waterTanks, `
 		SELECT
 			id,
 			name,
@@ -44,6 +28,27 @@ func (repository *readTankRepository) GetTankByID(ctx context.Context, tankID st
 			current_volume,
 			created_at,
 			updated_at
+		FROM
+			archimedes.water_tank;
+	`)
+
+	if err != nil {
+		return nil, err
+	}
+	if len(waterTanks) == 0 {
+		return nil, nil
+	}
+
+	return waterTanks, nil
+}
+
+func (repository *readTankRepository) GetTankShape(ctx context.Context, tankID string) (*tank.TankShape, error) {
+	var waterTanks []tank.TankShape
+
+	err := repository.pool.ReadArchimedes(ctx, &waterTanks, `
+		SELECT
+			tank_shape,
+			dimensions
 		FROM
 			archimedes.water_tank
 		WHERE

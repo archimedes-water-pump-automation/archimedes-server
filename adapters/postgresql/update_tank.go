@@ -18,7 +18,7 @@ func NewUpdateTankRepository(pool *pgxpool.Pool) *updateTankRepository {
 }
 
 func (repository *updateTankRepository) UpdateVolume(ctx context.Context, tankID string, newVolume float64, updatedAt time.Time) error {
-	err := repository.pool.QueryArchimedes(ctx, tankID, `
+	err := repository.pool.WriteArchimedes(ctx, `
 		UPDATE
 			archimedes.water_tank
 		SET

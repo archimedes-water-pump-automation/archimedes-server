@@ -3,10 +3,10 @@ package processor
 import "time"
 
 type WaterTankEvent struct {
-	TankID    string    `json:"tank_id"`
-	EventType string    `json:"event_type"`
-	Volume    float64   `json:"volume"`
-	Timestamp time.Time `json:"timestamp"`
+	TankID      string    `json:"tank_id"`
+	EventType   string    `json:"event_type"`
+	FluidHeight float64   `json:"distance"`
+	Timestamp   time.Time `json:"timestamp"`
 }
 
 type PumpEvent struct {

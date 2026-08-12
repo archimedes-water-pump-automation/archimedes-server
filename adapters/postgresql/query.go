@@ -17,7 +17,7 @@ func NewPool(pgxpool *pgxpool.Pool) *archimedesPool {
 	}
 }
 
-func (p *archimedesPool) QueryArchimedes(ctx context.Context, dst any, query string, args ...any) error {
+func (p *archimedesPool) ReadArchimedes(ctx context.Context, dst any, query string, args ...any) error {
 	connection, err := p.Acquire(ctx)
 	if err != nil {
 		return err
@@ -34,5 +34,21 @@ func (p *archimedesPool) QueryArchimedes(ctx context.Context, dst any, query str
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (p *archimedesPool) WriteArchimedes(ctx context.Context, query string, args ...any) error {
+	connection, err := p.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer connection.Release()
+
+	rows, err := connection.Query(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
 	return nil
 }
