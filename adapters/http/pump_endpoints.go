@@ -13,6 +13,8 @@ type pumpAPI struct {
 }
 
 func (api *pumpAPI) GetPumpsHandler(w http.ResponseWriter, r *http.Request) {
+	log.Log("Received request for pumpAPI.GetPumpsHandler")
+
 	pumpNames, err := api.readPumpStatusRepository.GetPumps(r.Context())
 
 	if err != nil {
@@ -35,12 +37,14 @@ func (api *pumpAPI) GetPumpsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *pumpAPI) GetPumpByIDHandler(w http.ResponseWriter, r *http.Request) {
+	log.Log("Received request for pumpAPI.GetPumpByIDHandler")
+
 	pumpID := r.PathValue("id")
 
 	pumpStatusData, err := api.readPumpStatusRepository.GetPumpStatus(r.Context(), pumpID)
 
 	if err != nil {
-		log.Log("Failed to get pumps: " + err.Error())
+		log.Log("Failed to get pump by ID: " + err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -63,12 +67,14 @@ func (api *pumpAPI) GetPumpByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *pumpAPI) GetPumpHistoricHandler(w http.ResponseWriter, r *http.Request) {
+	log.Log("Received request for pumpAPI.GetPumpHistoricHandler")
+
 	pumpID := r.PathValue("id")
 
 	pumpStatusData, err := api.readPumpStatusRepository.GetPumpStatusHistory(r.Context(), pumpID)
 
 	if err != nil {
-		log.Log("Failed to get pumps: " + err.Error())
+		log.Log("Failed to get pump historic: " + err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

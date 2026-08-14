@@ -19,6 +19,7 @@ type IUpdateTank interface {
 
 type IReadTank interface {
 	GetTanks(ctx context.Context) ([]Tank, error)
+	GetTankByID(ctx context.Context, tankID string) (*TankStatus, error)
 }
 
 type IReadTankShape interface {
