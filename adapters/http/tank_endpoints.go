@@ -24,7 +24,9 @@ func (api *tankAPI) GetTanksHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := json.Marshal(tanks)
+	response, err := json.Marshal(map[string]interface{}{
+		"tanks": tanks,
+	})
 
 	if err != nil {
 		log.Log("Failed to marshal tanks: " + err.Error())
