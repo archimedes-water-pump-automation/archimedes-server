@@ -43,7 +43,16 @@ func main() {
 	var tankStreamChannel = make(chan mqtt.Message)
 	var pumpStatusChannel = make(chan mqtt.Message)
 
-	log.SetLogger(log_file.NewLogger(os.Getenv("LOG_FILE")))
+	logFile, err := os.OpenFile(os.Getenv("LOG_FILE"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		log.Log("Closing log file...")
+		logFile.Close()
+	}()
+
+	log.SetLogger(log_file.NewLogger(logFile))
 
 	tankStreamClient := NewClient(tankStreamChannel, clientIDTank)
 	pumpStatusClient := NewClient(pumpStatusChannel, clientIDPump)
@@ -52,7 +61,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer pool.Close()
+	defer func() {
+		log.Log("Closing database connection pool...")
+		pool.Close()
+	}()
 
 	readTankRepository := postgresql.NewReadTankRepository(pool)
 
@@ -71,7 +83,11 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go http.Serve("8080", readTankRepository, postgresql.NewReadPumpStatusRepository(pool))
+	server := http.Serve("8080", readTankRepository, postgresql.NewReadPumpStatusRepository(pool))
+	defer func() {
+		log.Log("Shutting down HTTP server...")
+		server.Close()
+	}()
 
 	go func() {
 		defer wg.Done()
@@ -85,6 +101,7 @@ func main() {
 
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	<-sigChan
+	log.Log("Received termination signal, shutting down...")
 
 	cancel()
 

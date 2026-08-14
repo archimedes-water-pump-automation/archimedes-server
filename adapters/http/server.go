@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-func Serve(port string, readTankRepository tank.IReadTank, readPumpStatusRepository pump.IReadPumpStatus) {
+func Serve(port string, readTankRepository tank.IReadTank, readPumpStatusRepository pump.IReadPumpStatus) *http.Server {
 	mux := http.NewServeMux()
 
 	tankAPI := &tankAPI{readTankRepository: readTankRepository}
@@ -27,5 +27,7 @@ func Serve(port string, readTankRepository tank.IReadTank, readPumpStatusReposit
 	}
 
 	log.Log("Server is running on http://localhost:" + port)
-	server.ListenAndServe()
+	go server.ListenAndServe()
+
+	return server
 }
