@@ -18,7 +18,7 @@ func NewReadTankRepository(pool *pgxpool.Pool) *readTankRepository {
 }
 
 func (repository *readTankRepository) GetTanks(ctx context.Context) ([]tank.Tank, error) {
-	var waterTanks []tank.Tank
+	waterTanks := make([]tank.Tank, 0)
 
 	err := repository.pool.ReadArchimedes(ctx, &waterTanks, `
 		SELECT
@@ -31,15 +31,12 @@ func (repository *readTankRepository) GetTanks(ctx context.Context) ([]tank.Tank
 	if err != nil {
 		return nil, err
 	}
-	if len(waterTanks) == 0 {
-		return nil, nil
-	}
 
 	return waterTanks, nil
 }
 
 func (repository *readTankRepository) GetTankByID(ctx context.Context, tankID string) (*tank.TankStatus, error) {
-	var waterTanks []tank.TankStatus
+	waterTanks := make([]tank.TankStatus, 0)
 
 	err := repository.pool.ReadArchimedes(ctx, &waterTanks, `
 		SELECT
@@ -64,7 +61,7 @@ func (repository *readTankRepository) GetTankByID(ctx context.Context, tankID st
 }
 
 func (repository *readTankRepository) GetTankShape(ctx context.Context, tankID string) (*tank.TankShape, error) {
-	var waterTanks []tank.TankShape
+	waterTanks := make([]tank.TankShape, 0)
 
 	err := repository.pool.ReadArchimedes(ctx, &waterTanks, `
 		SELECT

@@ -18,6 +18,8 @@ func NewReadPumpStatusRepository(pool *pgxpool.Pool) *readPumpStatusRepository {
 }
 
 func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps []pump.Pump, err error) {
+	pumps = make([]pump.Pump, 0)
+
 	err = repository.pool.ReadArchimedes(ctx, &pumps, `
 		SELECT
 			id,
@@ -34,7 +36,7 @@ func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps
 }
 
 func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, pumpID string) (*pump.PumpStatus, error) {
-	var pumpStatus []pump.PumpStatus
+	pumpStatus := make([]pump.PumpStatus, 0)
 
 	err := repository.pool.ReadArchimedes(ctx, &pumpStatus, `
 		SELECT
@@ -63,7 +65,7 @@ func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, p
 }
 
 func (repository *readPumpStatusRepository) GetPumpStatusHistory(ctx context.Context, pumpID string) ([]pump.PumpStatus, error) {
-	var pumpStatus []pump.PumpStatus
+	pumpStatus := make([]pump.PumpStatus, 0)
 
 	err := repository.pool.ReadArchimedes(ctx, &pumpStatus, `
 		SELECT
