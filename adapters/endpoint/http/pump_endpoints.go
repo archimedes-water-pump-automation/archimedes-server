@@ -2,14 +2,14 @@ package http
 
 import (
 	"archimedes-server/core/log"
-	"archimedes-server/core/pump"
+	"archimedes-server/core/pump/interfaces"
 	"encoding/json"
 	"fmt"
 	"net/http"
 )
 
 type pumpAPI struct {
-	readPumpStatusRepository pump.IReadPumpStatus
+	readPumpStatusRepository interfaces.IReadPumpStatus
 }
 
 func (api *pumpAPI) GetPumpsHandler(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +24,7 @@ func (api *pumpAPI) GetPumpsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := json.Marshal(map[string]interface{}{
+	response, err := json.Marshal(map[string]any{
 		"pumps": pumpNames,
 	})
 

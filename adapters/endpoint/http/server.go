@@ -2,12 +2,12 @@ package http
 
 import (
 	"archimedes-server/core/log"
-	"archimedes-server/core/pump"
-	"archimedes-server/core/tank"
+	pumpInterfaces "archimedes-server/core/pump/interfaces"
+	tankInterfaces "archimedes-server/core/tank/interfaces"
 	"net/http"
 )
 
-func Serve(port string, readTankRepository tank.IReadTank, readPumpStatusRepository pump.IReadPumpStatus) *http.Server {
+func Serve(port string, readTankRepository tankInterfaces.IReadTank, readPumpStatusRepository pumpInterfaces.IReadPumpStatus) *http.Server {
 	mux := http.NewServeMux()
 
 	tankAPI := &tankAPI{readTankRepository: readTankRepository}

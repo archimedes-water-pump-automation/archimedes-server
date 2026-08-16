@@ -2,14 +2,14 @@ package http
 
 import (
 	"archimedes-server/core/log"
-	"archimedes-server/core/tank"
+	"archimedes-server/core/tank/interfaces"
 	"encoding/json"
 	"fmt"
 	"net/http"
 )
 
 type tankAPI struct {
-	readTankRepository tank.IReadTank
+	readTankRepository interfaces.IReadTank
 }
 
 func (api *tankAPI) GetTanksHandler(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +24,7 @@ func (api *tankAPI) GetTanksHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := json.Marshal(map[string]interface{}{
+	response, err := json.Marshal(map[string]any{
 		"tanks": tanks,
 	})
 

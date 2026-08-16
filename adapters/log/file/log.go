@@ -1,4 +1,4 @@
-package log_file
+package file
 
 import (
 	"log"

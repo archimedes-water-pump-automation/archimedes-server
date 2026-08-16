@@ -1,7 +1,7 @@
 package postgresql
 
 import (
-	"archimedes-server/core/tank"
+	"archimedes-server/core/tank/domain"
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,8 +17,8 @@ func NewReadTankRepository(pool *pgxpool.Pool) *readTankRepository {
 	}
 }
 
-func (repository *readTankRepository) GetTanks(ctx context.Context) ([]tank.Tank, error) {
-	waterTanks := make([]tank.Tank, 0)
+func (repository *readTankRepository) GetTanks(ctx context.Context) ([]domain.Tank, error) {
+	waterTanks := make([]domain.Tank, 0)
 
 	err := repository.pool.ReadArchimedes(ctx, &waterTanks, `
 		SELECT
@@ -35,8 +35,8 @@ func (repository *readTankRepository) GetTanks(ctx context.Context) ([]tank.Tank
 	return waterTanks, nil
 }
 
-func (repository *readTankRepository) GetTankByID(ctx context.Context, tankID string) (*tank.TankStatus, error) {
-	waterTanks := make([]tank.TankStatus, 0)
+func (repository *readTankRepository) GetTankByID(ctx context.Context, tankID string) (*domain.TankStatus, error) {
+	waterTanks := make([]domain.TankStatus, 0)
 
 	err := repository.pool.ReadArchimedes(ctx, &waterTanks, `
 		SELECT
@@ -44,29 +44,6 @@ func (repository *readTankRepository) GetTankByID(ctx context.Context, tankID st
 			current_volume,
 			created_at,
 			updated_at
-		FROM
-			archimedes.water_tank
-		WHERE
-			id = $1;
-	`, tankID)
-
-	if err != nil {
-		return nil, err
-	}
-	if len(waterTanks) == 0 {
-		return nil, nil
-	}
-
-	return &waterTanks[0], nil
-}
-
-func (repository *readTankRepository) GetTankShape(ctx context.Context, tankID string) (*tank.TankShape, error) {
-	waterTanks := make([]tank.TankShape, 0)
-
-	err := repository.pool.ReadArchimedes(ctx, &waterTanks, `
-		SELECT
-			tank_shape,
-			dimensions
 		FROM
 			archimedes.water_tank
 		WHERE

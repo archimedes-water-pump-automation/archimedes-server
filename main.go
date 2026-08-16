@@ -1,6 +1,13 @@
 package main
 
 import (
+	"archimedes-server/adapters/database/postgresql"
+	"archimedes-server/adapters/endpoint/http"
+	"archimedes-server/adapters/log/file"
+	mqtt_adapter "archimedes-server/adapters/stream/mqtt"
+	"archimedes-server/core/log"
+	"archimedes-server/core/processor/usecases/pump"
+	"archimedes-server/core/processor/usecases/tank"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -12,14 +19,6 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-
-	"archimedes-server/adapters/http"
-	"archimedes-server/adapters/log_file"
-	mqtt_adapter "archimedes-server/adapters/mqtt"
-	"archimedes-server/adapters/postgresql"
-	"archimedes-server/core/log"
-	"archimedes-server/core/processor"
-	"archimedes-server/core/tank"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -52,7 +51,7 @@ func main() {
 		logFile.Close()
 	}()
 
-	log.SetLogger(log_file.NewLogger(logFile))
+	log.SetLogger(file.NewLogger(logFile))
 
 	tankStreamClient := NewClient(tankStreamChannel, clientIDTank)
 	pumpStatusClient := NewClient(pumpStatusChannel, clientIDPump)
@@ -68,8 +67,8 @@ func main() {
 
 	readTankRepository := postgresql.NewReadTankRepository(pool)
 
-	updateTankProcessor := processor.NewProcessTankUpdate(postgresql.NewUpdateTankRepository(pool), tank.NewCalculateVolume(readTankRepository))
-	updatePumpProcessor := processor.NewProcessPumpStatusUpdate(postgresql.NewUpdatePumpStatusRepository(pool))
+	updateTankProcessor := tank.NewProcessTankUpdate(postgresql.NewUpdateTankRepository(pool), postgresql.NewGetVolumeType(pool))
+	updatePumpProcessor := pump.NewProcessPumpStatusUpdate(postgresql.NewUpdatePumpStatusRepository(pool))
 
 	waterTankConsumer := mqtt_adapter.NewStreamConsumer(tankStreamClient, waterTankTopic, tankStreamChannel)
 	if waterTankConsumer == nil {

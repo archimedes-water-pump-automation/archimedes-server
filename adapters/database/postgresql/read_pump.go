@@ -1,7 +1,7 @@
 package postgresql
 
 import (
-	"archimedes-server/core/pump"
+	"archimedes-server/core/pump/domain"
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,8 +17,8 @@ func NewReadPumpStatusRepository(pool *pgxpool.Pool) *readPumpStatusRepository {
 	}
 }
 
-func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps []pump.Pump, err error) {
-	pumps = make([]pump.Pump, 0)
+func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps []domain.Pump, err error) {
+	pumps = make([]domain.Pump, 0)
 
 	err = repository.pool.ReadArchimedes(ctx, &pumps, `
 		SELECT
@@ -35,8 +35,8 @@ func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps
 	return pumps, nil
 }
 
-func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, pumpID string) (*pump.PumpStatus, error) {
-	pumpStatus := make([]pump.PumpStatus, 0)
+func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, pumpID string) (*domain.PumpStatus, error) {
+	pumpStatus := make([]domain.PumpStatus, 0)
 
 	err := repository.pool.ReadArchimedes(ctx, &pumpStatus, `
 		SELECT
@@ -64,8 +64,8 @@ func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, p
 	return &pumpStatus[0], nil
 }
 
-func (repository *readPumpStatusRepository) GetPumpStatusHistory(ctx context.Context, pumpID string) ([]pump.PumpStatus, error) {
-	pumpStatus := make([]pump.PumpStatus, 0)
+func (repository *readPumpStatusRepository) GetPumpStatusHistory(ctx context.Context, pumpID string) ([]domain.PumpStatus, error) {
+	pumpStatus := make([]domain.PumpStatus, 0)
 
 	err := repository.pool.ReadArchimedes(ctx, &pumpStatus, `
 		SELECT

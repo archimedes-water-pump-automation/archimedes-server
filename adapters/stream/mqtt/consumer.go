@@ -2,7 +2,7 @@ package mqtt
 
 import (
 	"archimedes-server/core/log"
-	"archimedes-server/core/processor"
+	"archimedes-server/core/processor/interfaces"
 	"context"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -36,7 +36,7 @@ func NewStreamConsumer(client mqtt.Client, topic string, inputChannel <-chan mqt
 	}
 }
 
-func (consumer *streamConsumer) Consume(ctx context.Context, processTankStream processor.IProcessStream) {
+func (consumer *streamConsumer) Consume(ctx context.Context, processTankStream interfaces.IProcessStream) {
 	for {
 		select {
 		case msg, ok := <-consumer.input:

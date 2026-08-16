@@ -1,4 +1,4 @@
-package tank
+package domain
 
 import "time"
 
@@ -12,15 +12,4 @@ type TankStatus struct {
 	Volume    float64   `db:"current_volume" json:"current_volume"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
-}
-
-type Shape string
-
-const (
-	Cylindrical Shape = "cylindrical"
-)
-
-type TankShape struct {
-	Shape      Shape                  `db:"tank_shape" json:"tank_shape"`
-	Dimensions map[string]interface{} `db:"dimensions" json:"dimensions"`
 }

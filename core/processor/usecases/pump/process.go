@@ -1,24 +1,25 @@
-package processor
+package pump
 
 import (
 	"archimedes-server/core/log"
-	"archimedes-server/core/pump"
+	"archimedes-server/core/processor/domain"
+	"archimedes-server/core/pump/interfaces"
 	"context"
 	"encoding/json"
 )
 
 type ProcessPumpUpdate struct {
-	repository pump.IUpdatePumpStatus
+	repository interfaces.IUpdatePumpStatus
 }
 
-func NewProcessPumpStatusUpdate(repository pump.IUpdatePumpStatus) *ProcessPumpUpdate {
+func NewProcessPumpStatusUpdate(repository interfaces.IUpdatePumpStatus) *ProcessPumpUpdate {
 	return &ProcessPumpUpdate{
 		repository: repository,
 	}
 }
 
 func (u *ProcessPumpUpdate) Process(ctx context.Context, data []byte) error {
-	var event PumpEvent
+	var event domain.PumpEvent
 
 	err := json.Unmarshal(data, &event)
 

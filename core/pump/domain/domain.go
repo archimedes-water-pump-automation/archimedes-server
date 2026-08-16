@@ -1,4 +1,4 @@
-package pump
+package domain
 
 import "time"
 
