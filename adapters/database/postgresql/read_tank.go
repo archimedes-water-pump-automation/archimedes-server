@@ -7,16 +7,20 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// readTankRepository implements
+// archimedes-server/core/tank/interfaces.IReadTank against PostgreSQL.
 type readTankRepository struct {
 	pool *archimedesPool
 }
 
+// NewReadTankRepository builds an IReadTank backed by pool.
 func NewReadTankRepository(pool *pgxpool.Pool) *readTankRepository {
 	return &readTankRepository{
 		pool: NewPool(pool),
 	}
 }
 
+// GetTanks lists every registered tank.
 func (repository *readTankRepository) GetTanks(ctx context.Context) ([]domain.Tank, error) {
 	waterTanks := make([]domain.Tank, 0)
 
@@ -27,7 +31,6 @@ func (repository *readTankRepository) GetTanks(ctx context.Context) ([]domain.Ta
 		FROM
 			archimedes.water_tank;
 	`)
-
 	if err != nil {
 		return nil, err
 	}
@@ -35,6 +38,8 @@ func (repository *readTankRepository) GetTanks(ctx context.Context) ([]domain.Ta
 	return waterTanks, nil
 }
 
+// GetTankByID returns tankID's latest status, or nil if the tank does not
+// exist.
 func (repository *readTankRepository) GetTankByID(ctx context.Context, tankID string) (*domain.TankStatus, error) {
 	waterTanks := make([]domain.TankStatus, 0)
 
@@ -49,7 +54,6 @@ func (repository *readTankRepository) GetTankByID(ctx context.Context, tankID st
 		WHERE
 			id = $1;
 	`, tankID)
-
 	if err != nil {
 		return nil, err
 	}

@@ -8,16 +8,21 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// updatePumpStatusRepository implements
+// archimedes-server/core/pump/interfaces.IUpdatePumpStatus against
+// PostgreSQL.
 type updatePumpStatusRepository struct {
 	pool *archimedesPool
 }
 
+// NewUpdatePumpStatusRepository builds an IUpdatePumpStatus backed by pool.
 func NewUpdatePumpStatusRepository(pool *pgxpool.Pool) *updatePumpStatusRepository {
 	return &updatePumpStatusRepository{
 		pool: NewPool(pool),
 	}
 }
 
+// StartPump inserts a new run for pumpID starting at timestamp.
 func (repository *updatePumpStatusRepository) StartPump(ctx context.Context, pumpID string, timestamp time.Time) error {
 	err := repository.pool.WriteArchimedes(ctx, `
 		INSERT INTO
@@ -26,7 +31,6 @@ func (repository *updatePumpStatusRepository) StartPump(ctx context.Context, pum
 			($1, $2, $3)
 		RETURNING pump_id;
 	`, uuid.NewString(), pumpID, timestamp)
-
 	if err != nil {
 		return err
 	}
@@ -34,7 +38,16 @@ func (repository *updatePumpStatusRepository) StartPump(ctx context.Context, pum
 	return nil
 }
 
-func (repository *updatePumpStatusRepository) StopPump(ctx context.Context, pumpID string, timestamp time.Time, stopReason string) error {
+// StopPump closes pumpID's most recent open run with the given timestamp
+// and reason. It updates whichever run is most recent regardless of
+// whether it is already stopped, since the query is not scoped to open
+// runs only.
+func (repository *updatePumpStatusRepository) StopPump(
+	ctx context.Context,
+	pumpID string,
+	timestamp time.Time,
+	stopReason string,
+) error {
 	err := repository.pool.WriteArchimedes(ctx, `
 		WITH status AS (
 			SELECT
@@ -57,7 +70,6 @@ func (repository *updatePumpStatusRepository) StopPump(ctx context.Context, pump
 			archimedes.pump_status.id = status.id
 		RETURNING pump_id;
 	`, pumpID, timestamp, stopReason)
-
 	if err != nil {
 		return err
 	}

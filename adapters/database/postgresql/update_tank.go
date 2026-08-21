@@ -7,17 +7,27 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// updateTankRepository implements
+// archimedes-server/core/tank/interfaces.IUpdateTank against PostgreSQL.
 type updateTankRepository struct {
 	pool *archimedesPool
 }
 
+// NewUpdateTankRepository builds an IUpdateTank backed by pool.
 func NewUpdateTankRepository(pool *pgxpool.Pool) *updateTankRepository {
 	return &updateTankRepository{
 		pool: NewPool(pool),
 	}
 }
 
-func (repository *updateTankRepository) UpdateVolume(ctx context.Context, tankID string, newVolume float64, updatedAt time.Time) error {
+// UpdateVolume overwrites tankID's stored volume and updated-at timestamp.
+// It is a no-op if tankID does not exist.
+func (repository *updateTankRepository) UpdateVolume(
+	ctx context.Context,
+	tankID string,
+	newVolume float64,
+	updatedAt time.Time,
+) error {
 	err := repository.pool.WriteArchimedes(ctx, `
 		UPDATE
 			archimedes.water_tank
@@ -28,7 +38,6 @@ func (repository *updateTankRepository) UpdateVolume(ctx context.Context, tankID
 			id = $1
 		RETURNING id;
 	`, tankID, newVolume, updatedAt)
-
 	if err != nil {
 		return err
 	}

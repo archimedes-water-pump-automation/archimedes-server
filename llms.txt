@@ -1,0 +1,56 @@
+# archimedes-server
+
+> Backend service that ingests MQTT tank/pump events, computes tank volume from geometry, persists to PostgreSQL, and exposes a read-only HTTP API.
+
+## Overview
+
+Archimedes-server subscribes to two MQTT topics: one carrying water tank sensor distance readings, the other carrying pump start/stop events. It converts each tank reading into a volume using the tank's registered shape and dimensions, writes the result to PostgreSQL, and records pump run history. A separate HTTP server exposes everything it has stored through read-only endpoints. The codebase follows a hexagonal layout: `core/` holds domain types, interfaces, and use cases with no dependency on any concrete adapter; `adapters/` implements those interfaces against PostgreSQL, MQTT, HTTP, and file logging.
+
+## Key Concepts
+
+- **Tank**: a physical water tank with an ID, name, and a stored shape/dimensions used to compute volume from a sensor distance reading.
+- **Pump**: a physical pump whose start/stop events are recorded as a history of runs (`PumpStatus`), each with a start time and, once stopped, a stop time and reason.
+- **IVolumeCalculator**: the abstraction for converting a sensor distance into a fluid volume for a given tank shape. `cylindrical_cone` is the only implementation today.
+- **IProcessStream**: the abstraction a stream consumer calls with a raw MQTT message body; implemented separately for tank and pump events.
+
+## API Reference
+
+### Core Types
+
+- `core/tank/domain.Tank`, `core/tank/domain.TankStatus` — tank identity and latest volume reading.
+- `core/pump/domain.Pump`, `core/pump/domain.PumpStatus` — pump identity and one run (start/stop) record.
+- `core/volume/domain.Shape` — tank shape identifier stored in PostgreSQL (`cylindrical_cone`).
+- `core/processor/domain.WaterTankEvent`, `core/processor/domain.PumpEvent` — the JSON payloads carried on the MQTT topics.
+
+### Core Interfaces
+
+- `core/tank/interfaces.IReadTank` / `IUpdateTank` — read and write tank data.
+- `core/pump/interfaces.IReadPumpStatus` / `IUpdatePumpStatus` — read and write pump run data.
+- `core/volume/interfaces.IGetVolumeType` — resolve a tank's `IVolumeCalculator` from its stored shape.
+- `core/volume/interfaces.IVolumeCalculator` — compute a volume from a sensor distance reading.
+- `core/processor/interfaces.IProcessStream` — handle one raw MQTT message.
+
+### HTTP Endpoints (adapters/endpoint/http)
+
+- `GET /health` — liveness check.
+- `GET /read/tank` — list tanks.
+- `GET /read/tank/{id}` — a tank's latest status.
+- `GET /read/pump` — list pumps.
+- `GET /read/pump/{id}` — a pump's most recent run.
+- `GET /read/pump/{id}/historic` — a pump's full run history.
+
+## Common Patterns
+
+### Adding a new tank shape
+
+Implement `core/volume/interfaces.IVolumeCalculator` in a new package under `core/volume/usecases/`, then register the shape's `domain.Shape` value in `adapters/database/postgresql.getVolumeType.GetVolumeFromShape`'s switch statement.
+
+### Adding a new MQTT-driven use case
+
+Implement `core/processor/interfaces.IProcessStream`, wire a new `adapters/stream/mqtt.NewStreamConsumer` in `main.go` pointed at the relevant topic, and start it on its own goroutine alongside the existing tank/pump consumers.
+
+## References
+
+- Repository: https://github.com/archimedes-water-pump-automation/archimedes-server
+- README: [README.md](./README.md)
+- Issues: https://github.com/archimedes-water-pump-automation/archimedes-server/issues

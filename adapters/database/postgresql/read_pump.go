@@ -7,16 +7,21 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// readPumpStatusRepository implements
+// archimedes-server/core/pump/interfaces.IReadPumpStatus against
+// PostgreSQL.
 type readPumpStatusRepository struct {
 	pool *archimedesPool
 }
 
+// NewReadPumpStatusRepository builds an IReadPumpStatus backed by pool.
 func NewReadPumpStatusRepository(pool *pgxpool.Pool) *readPumpStatusRepository {
 	return &readPumpStatusRepository{
 		pool: NewPool(pool),
 	}
 }
 
+// GetPumps lists every registered pump.
 func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps []domain.Pump, err error) {
 	pumps = make([]domain.Pump, 0)
 
@@ -27,7 +32,6 @@ func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps
 		FROM
 			archimedes.pump;
 	`)
-
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +39,12 @@ func (repository *readPumpStatusRepository) GetPumps(ctx context.Context) (pumps
 	return pumps, nil
 }
 
-func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, pumpID string) (*domain.PumpStatus, error) {
+// GetPumpStatus returns pumpID's most recent run, or nil if the pump has no
+// recorded runs.
+func (repository *readPumpStatusRepository) GetPumpStatus(
+	ctx context.Context,
+	pumpID string,
+) (*domain.PumpStatus, error) {
 	pumpStatus := make([]domain.PumpStatus, 0)
 
 	err := repository.pool.ReadArchimedes(ctx, &pumpStatus, `
@@ -53,7 +62,6 @@ func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, p
 			started_at DESC
 		LIMIT 1;
 	`, pumpID)
-
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +72,12 @@ func (repository *readPumpStatusRepository) GetPumpStatus(ctx context.Context, p
 	return &pumpStatus[0], nil
 }
 
-func (repository *readPumpStatusRepository) GetPumpStatusHistory(ctx context.Context, pumpID string) ([]domain.PumpStatus, error) {
+// GetPumpStatusHistory returns every recorded run for pumpID, most recent
+// first.
+func (repository *readPumpStatusRepository) GetPumpStatusHistory(
+	ctx context.Context,
+	pumpID string,
+) ([]domain.PumpStatus, error) {
 	pumpStatus := make([]domain.PumpStatus, 0)
 
 	err := repository.pool.ReadArchimedes(ctx, &pumpStatus, `
@@ -81,7 +94,6 @@ func (repository *readPumpStatusRepository) GetPumpStatusHistory(ctx context.Con
 		ORDER BY
 			started_at DESC;
 	`, pumpID)
-
 	if err != nil {
 		return nil, err
 	}

@@ -1,3 +1,7 @@
+// Command archimedes-server wires the tank and pump MQTT consumers, the
+// PostgreSQL repositories, and the read-only HTTP API into a single
+// long-running process. It exits cleanly on SIGINT/SIGTERM once both stream
+// consumers have drained.
 package main
 
 import (
@@ -11,6 +15,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"strconv"
@@ -38,9 +43,9 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	var sigChan = make(chan os.Signal, 1)
-	var tankStreamChannel = make(chan mqtt.Message)
-	var pumpStatusChannel = make(chan mqtt.Message)
+	sigChan := make(chan os.Signal, 1)
+	tankStreamChannel := make(chan mqtt.Message)
+	pumpStatusChannel := make(chan mqtt.Message)
 
 	logFile, err := os.OpenFile(os.Getenv("LOG_FILE"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -67,7 +72,10 @@ func main() {
 
 	readTankRepository := postgresql.NewReadTankRepository(pool)
 
-	updateTankProcessor := tank.NewProcessTankUpdate(postgresql.NewUpdateTankRepository(pool), postgresql.NewGetVolumeType(pool))
+	updateTankProcessor := tank.NewProcessTankUpdate(
+		postgresql.NewUpdateTankRepository(pool),
+		postgresql.NewGetVolumeType(pool),
+	)
 	updatePumpProcessor := pump.NewProcessPumpStatusUpdate(postgresql.NewUpdatePumpStatusRepository(pool))
 
 	waterTankConsumer := mqtt_adapter.NewStreamConsumer(tankStreamClient, waterTankTopic, tankStreamChannel)
@@ -108,6 +116,10 @@ func main() {
 	log.Log("Archimedes terminated, exiting...")
 }
 
+// NewClient connects to the MQTT broker at the MQTT_BROKER_URL environment
+// variable and forwards every message it receives onto inputChannel via the
+// default publish handler. It panics if the initial connection fails, since
+// the server cannot do useful work without its stream input.
 func NewClient(inputChannel chan mqtt.Message, clientID string) mqtt.Client {
 
 	opts := mqtt.NewClientOptions()
@@ -120,7 +132,7 @@ func NewClient(inputChannel chan mqtt.Message, clientID string) mqtt.Client {
 		log.Log("Connected to MQTT Broker")
 	}
 	opts.OnConnectionLost = func(tankStreamClient mqtt.Client, err error) {
-		log.Log("Connection lost: " + err.Error())
+		log.Log(fmt.Sprintf("Connection lost: %q", err.Error()))
 	}
 
 	tankStreamClient := mqtt.NewClient(opts)
@@ -130,6 +142,13 @@ func NewClient(inputChannel chan mqtt.Message, clientID string) mqtt.Client {
 	return tankStreamClient
 }
 
+// NewPool creates a PostgreSQL connection pool bounded to 1-3 connections
+// with a 30 minute max lifetime and 10 minute idle timeout, sized for the
+// server's low, steady query volume rather than high concurrency. TLS is
+// enabled with certificate verification skipped when DB_TLS_ENABLED is
+// truthy; this suits providers with managed certificates the client can't
+// validate, and should not be relied on where the connection path is
+// untrusted. All connections use the UTC timezone.
 func NewPool(ctx context.Context, connString string) (*pgxpool.Pool, error) {
 	config, err := pgxpool.ParseConfig(connString)
 	if err != nil {
