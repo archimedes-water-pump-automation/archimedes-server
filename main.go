@@ -1,9 +1,21 @@
+// Command archimedes-server wires the tank and pump MQTT consumers, the
+// PostgreSQL repositories, and the read-only HTTP API into a single
+// long-running process. It exits cleanly on SIGINT/SIGTERM once both stream
+// consumers have drained.
 package main
 
 import (
+	"archimedes-server/adapters/database/postgresql"
+	"archimedes-server/adapters/endpoint/http"
+	"archimedes-server/adapters/log/file"
+	mqtt_adapter "archimedes-server/adapters/stream/mqtt"
+	"archimedes-server/core/log"
+	"archimedes-server/core/processor/usecases/pump"
+	"archimedes-server/core/processor/usecases/tank"
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"strconv"
@@ -12,14 +24,6 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-
-	"archimedes-server/adapters/http"
-	"archimedes-server/adapters/log_file"
-	mqtt_adapter "archimedes-server/adapters/mqtt"
-	"archimedes-server/adapters/postgresql"
-	"archimedes-server/core/log"
-	"archimedes-server/core/processor"
-	"archimedes-server/core/tank"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -39,9 +43,9 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	var sigChan = make(chan os.Signal, 1)
-	var tankStreamChannel = make(chan mqtt.Message)
-	var pumpStatusChannel = make(chan mqtt.Message)
+	sigChan := make(chan os.Signal, 1)
+	tankStreamChannel := make(chan mqtt.Message)
+	pumpStatusChannel := make(chan mqtt.Message)
 
 	logFile, err := os.OpenFile(os.Getenv("LOG_FILE"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -52,7 +56,7 @@ func main() {
 		logFile.Close()
 	}()
 
-	log.SetLogger(log_file.NewLogger(logFile))
+	log.SetLogger(file.NewLogger(logFile))
 
 	tankStreamClient := NewClient(tankStreamChannel, clientIDTank)
 	pumpStatusClient := NewClient(pumpStatusChannel, clientIDPump)
@@ -68,8 +72,11 @@ func main() {
 
 	readTankRepository := postgresql.NewReadTankRepository(pool)
 
-	updateTankProcessor := processor.NewProcessTankUpdate(postgresql.NewUpdateTankRepository(pool), tank.NewCalculateVolume(readTankRepository))
-	updatePumpProcessor := processor.NewProcessPumpStatusUpdate(postgresql.NewUpdatePumpStatusRepository(pool))
+	updateTankProcessor := tank.NewProcessTankUpdate(
+		postgresql.NewUpdateTankRepository(pool),
+		postgresql.NewGetVolumeType(pool),
+	)
+	updatePumpProcessor := pump.NewProcessPumpStatusUpdate(postgresql.NewUpdatePumpStatusRepository(pool))
 
 	waterTankConsumer := mqtt_adapter.NewStreamConsumer(tankStreamClient, waterTankTopic, tankStreamChannel)
 	if waterTankConsumer == nil {
@@ -109,6 +116,10 @@ func main() {
 	log.Log("Archimedes terminated, exiting...")
 }
 
+// NewClient connects to the MQTT broker at the MQTT_BROKER_URL environment
+// variable and forwards every message it receives onto inputChannel via the
+// default publish handler. It panics if the initial connection fails, since
+// the server cannot do useful work without its stream input.
 func NewClient(inputChannel chan mqtt.Message, clientID string) mqtt.Client {
 
 	opts := mqtt.NewClientOptions()
@@ -121,7 +132,7 @@ func NewClient(inputChannel chan mqtt.Message, clientID string) mqtt.Client {
 		log.Log("Connected to MQTT Broker")
 	}
 	opts.OnConnectionLost = func(tankStreamClient mqtt.Client, err error) {
-		log.Log("Connection lost: " + err.Error())
+		log.Log(fmt.Sprintf("Connection lost: %q", err.Error()))
 	}
 
 	tankStreamClient := mqtt.NewClient(opts)
@@ -131,6 +142,13 @@ func NewClient(inputChannel chan mqtt.Message, clientID string) mqtt.Client {
 	return tankStreamClient
 }
 
+// NewPool creates a PostgreSQL connection pool bounded to 1-3 connections
+// with a 30 minute max lifetime and 10 minute idle timeout, sized for the
+// server's low, steady query volume rather than high concurrency. TLS is
+// enabled with certificate verification skipped when DB_TLS_ENABLED is
+// truthy; this suits providers with managed certificates the client can't
+// validate, and should not be relied on where the connection path is
+// untrusted. All connections use the UTC timezone.
 func NewPool(ctx context.Context, connString string) (*pgxpool.Pool, error) {
 	config, err := pgxpool.ParseConfig(connString)
 	if err != nil {
