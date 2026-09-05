@@ -99,8 +99,8 @@ type PumpEvent struct {
 	// on it.
 	FlowLPM *float64 `json:"flow_lpm,omitempty"`
 	// TankState is the tank node's last word on the tank when the relay
-	// moved: "full", "partial", "refillable" or "unknown". Absent in the
-	// controller's last will. Carried for diagnosis — the controller
+	// moved: "full", "not_full" or "unknown". Absent in the controller's
+	// last will. Carried for diagnosis — the controller
 	// never sees a distance, so it cannot report one, and the stored
 	// volume comes from the tank topic rather than from here.
 	TankState string `json:"tank_state,omitempty"`

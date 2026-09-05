@@ -82,7 +82,7 @@ func TestPumpEvent_Unmarshal(t *testing.T) {
 	data := []byte(`{"event":"pump","device":"pump-01",` +
 		`"timestamp":"2026-09-05T03:10:12Z","state":"on",` +
 		`"reason":"flow_confirmed","flow_lpm":11.40,` +
-		`"tank_state":"refillable","uptime_s":338}`)
+		`"tank_state":"not_full","uptime_s":338}`)
 
 	var event PumpEvent
 	is.NoError(json.Unmarshal(data, &event))
@@ -92,7 +92,7 @@ func TestPumpEvent_Unmarshal(t *testing.T) {
 	is.Equal(PumpStateOn, event.State)
 	is.Equal("flow_confirmed", event.Reason)
 	is.Equal(11.40, *event.FlowLPM)
-	is.Equal("refillable", event.TankState)
+	is.Equal("not_full", event.TankState)
 }
 
 func TestPumpEvent_UnmarshalLastWill(t *testing.T) {

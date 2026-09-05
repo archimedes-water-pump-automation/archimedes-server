@@ -74,7 +74,7 @@ Two independent consumers, each on its own goroutine, subscribe at QoS 1 to the 
 // Pump transitions, from pump-ctl
 { "event": "pump", "device": "pump-01", "timestamp": "2026-09-05T03:10:12Z",
   "state": "on", "reason": "flow_confirmed", "flow_lpm": 11.40,
-  "tank_state": "refillable", "uptime_s": 338 }
+  "tank_state": "not_full", "uptime_s": 338 }
 { "event": "pump", "device": "pump-01", "timestamp": "2026-09-05T03:14:41Z",
   "state": "off", "reason": "tank_full", "flow_lpm": 0.0,
   "tank_state": "full", "uptime_s": 607 }
@@ -82,7 +82,7 @@ Two independent consumers, each on its own goroutine, subscribe at QoS 1 to the 
 
 `device` is the key each event is stored against: it must match the tank's or pump's `id` in the database.
 
-`tank_state` is what the tank node told the controller, not what the controller measured: the distance stays between `tank-node` and this server, while `pump-ctl` receives only the state derived from it on a separate topic. This server is the only subscriber to the level topic.
+`tank_state` (`full`, `not_full` or `unknown`) is what the tank node told the controller, not what the controller measured: the distance stays between `tank-node` and this server, while `pump-ctl` receives only the derived state on a separate topic, where it can stop a pump but never start one. This server is the only subscriber to the level topic.
 
 `timestamp` is UTC and optional, because the publishing boards have no battery-backed RTC and a last will is published by the broker rather than by the device. When it is absent the server records the moment it received the message, which is the closest true answer available.
 

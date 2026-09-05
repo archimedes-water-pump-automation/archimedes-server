@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- **Breaking:** a pump event carries `tank_state` (the tank node's verdict: `full`, `partial`, `refillable`, `unknown`) instead of `distance_cm`. The pump controller now receives the derived state on its own topic and never sees a distance, so it cannot report one. This server is the only subscriber to the tank's level topic.
+- **Breaking:** a pump event carries `tank_state` (the tank node's verdict: `full`, `not_full`, `unknown`) instead of `distance_cm`. The pump controller now receives the derived state on its own topic and never sees a distance, so it cannot report one. This server is the only subscriber to the tank's level topic.
 - **Breaking:** tank and pump events are now the payloads the firmware actually publishes. A tank reading is `{"event":"level","device":…,"valid":…,"distance_cm":…}` rather than `{"tank_id":…,"event_type":…,"distance":…}`, and a pump event is `{"event":"pump","device":…,"state":"on"|"off","reason":…}` rather than `{"pump_id":…,"event_type":"start"|"stop","stop_reason":…}`. The events reaching this server never had the old shape, so nothing that used to be stored stops being stored.
 - A tank's `dimensions` must be stored in centimetres, matching the `distance_cm` on the wire.
 
