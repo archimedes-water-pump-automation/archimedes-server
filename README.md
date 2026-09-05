@@ -86,6 +86,8 @@ Two independent consumers, each on its own goroutine, subscribe at QoS 1 to the 
 
 `timestamp` is UTC and optional, because the publishing boards have no battery-backed RTC and a last will is published by the broker rather than by the device. When it is absent the server records the moment it received the message, which is the closest true answer available.
 
+Retained messages are ignored, on both topics. Retention exists for dashboards: this server connects with a clean session, so the broker replays a retained pump event on every reconnect, and processing it again would record a second run for a start that happened once. The cost is that a server starting mid-run does not learn the pump is already running until its next transition — the controller also announces its real state with `reason: "boot"` on its first connection after a restart, which closes a run left open by a crash.
+
 A pump event with `"state": "unknown"` is the controller's last will. It is logged and stored as nothing: an unreachable controller is not a stopped pump, and closing a run on it would put a fabricated stop time in the history.
 
 ### Volume calculation

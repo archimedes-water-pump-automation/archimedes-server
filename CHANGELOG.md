@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `MQTT_CONTRACT.md`, the single description of every event this system puts on the broker, mirrored in `tank-node`, `pump-ctl`, `scheduled-valve` and `archimedes-server`.
 - `core/processor/domain.Envelope`, the `event`/`device`/`timestamp`/`uptime_s` fields every device event shares, with `At` resolving an event's record time.
 - Tests for the processor domain types and for the reading, last-will, wrong-event-type and missing-timestamp paths of both processors.
+- Tests for the MQTT stream consumer's retained-message and shutdown paths.
 
 ### Changed
 
@@ -20,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Retained messages being processed as new events. The pump topic is retained for dashboards and this server connects with a clean session, so the broker replayed the retained pump event on every reconnect and each replay recorded another pump run for a start that had happened once.
+- `StopPump` rewriting the most recent run even when it was already stopped, so a stop for a pump with no open run — a controller announcing `"off"` after a reboot — overwrote a completed run's stop time and reason. It is now scoped to open runs.
 - Tank readings flagged invalid (`valid:false`, `distance_cm:null`) being stored as a volume computed from a distance of zero, which records a tank filled to the sensor at exactly the moment the level sensor cannot be read.
 - Events arriving without a timestamp being stored with a zero time (year 1) instead of the time they were received. The publishing boards have no battery-backed RTC and omit the field until SNTP lands.
 - A pump controller's last will (`state:"unknown"`) being treated as an unrecognized event rather than as an explicitly ignored one; it says the controller is unreachable, not that the pump stopped.

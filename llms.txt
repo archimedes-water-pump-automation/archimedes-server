@@ -29,7 +29,7 @@ Archimedes-server subscribes to two MQTT topics: one carrying water tank sensor 
 - `core/pump/interfaces.IReadPumpStatus` / `IUpdatePumpStatus` — read and write pump run data.
 - `core/volume/interfaces.IGetVolumeType` — resolve a tank's `IVolumeCalculator` from its stored shape.
 - `core/volume/interfaces.IVolumeCalculator` — compute a volume from a sensor distance reading.
-- `core/processor/interfaces.IProcessStream` — handle one raw MQTT message.
+- `core/processor/interfaces.IProcessStream` — handle one raw MQTT message. The stream consumer drops retained messages before calling it: every processor records an event that happened, and a clean-session reconnect replays retained messages.
 
 ### HTTP Endpoints (adapters/endpoint/http)
 

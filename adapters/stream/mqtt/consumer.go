@@ -50,6 +50,15 @@ func NewStreamConsumer(client mqtt.Client, topic string, inputChannel <-chan mqt
 // processTankStream.Process (its return value is not inspected; failures
 // must be logged inside Process) until the input channel is closed or ctx
 // is cancelled, at which point it unsubscribes and disconnects the client.
+//
+// Retained messages are dropped rather than processed. The pump topic is
+// retained so a dashboard connecting late can see what the pump is doing,
+// but every processor behind this consumer turns a message into a record
+// of something that happened: the client connects with a clean session,
+// so the broker redelivers that retained message on every reconnect, and
+// processing it again would insert a second pump run for a start that
+// happened once. The cost is that a server starting mid-run does not
+// learn the pump is already running until its next transition.
 func (consumer *streamConsumer) Consume(ctx context.Context, processTankStream interfaces.IProcessStream) {
 	for {
 		select {
@@ -57,6 +66,10 @@ func (consumer *streamConsumer) Consume(ctx context.Context, processTankStream i
 			if !ok {
 				log.Log("Input channel closed, stopping consumer")
 				return
+			}
+			if msg.Retained() {
+				log.Log(fmt.Sprintf("Ignoring retained message on topic %q", msg.Topic()))
+				continue
 			}
 			processTankStream.Process(ctx, msg.Payload())
 

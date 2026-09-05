@@ -39,9 +39,10 @@ func (repository *updatePumpStatusRepository) StartPump(ctx context.Context, pum
 }
 
 // StopPump closes pumpID's most recent open run with the given timestamp
-// and reason. It updates whichever run is most recent regardless of
-// whether it is already stopped, since the query is not scoped to open
-// runs only.
+// and reason. Runs that are already stopped are left alone: a stop for a
+// pump with no open run — a controller announcing "off" after a reboot,
+// say — records nothing rather than rewriting the last completed run's
+// stop time and reason.
 func (repository *updatePumpStatusRepository) StopPump(
 	ctx context.Context,
 	pumpID string,
@@ -56,6 +57,7 @@ func (repository *updatePumpStatusRepository) StopPump(
 				archimedes.pump_status
 			WHERE
 				pump_id=$1
+				AND stopped_at IS NULL
 			ORDER BY started_at DESC
 			LIMIT 1
 		)
