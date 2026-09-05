@@ -5,11 +5,22 @@ import (
 	volumeInterfaces "archimedes-server/core/volume/interfaces"
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// receivedAt is what the processor stamps an event with when the device
+// published none of its own. Pinned before any test runs so the fallback
+// path is assertable and races cannot see a half-written clock.
+var receivedAt = time.Date(2026, 8, 21, 12, 30, 0, 0, time.UTC)
+
+func TestMain(m *testing.M) {
+	timeNow = func() time.Time { return receivedAt }
+	os.Exit(m.Run())
+}
 
 var (
 	_ tankInterfaces.IUpdateTank         = (*fakeUpdateTank)(nil)
@@ -48,9 +59,13 @@ func (f *fakeGetVolumeType) GetVolumeFromShape(ctx context.Context, tankID strin
 type fakeVolumeCalculator struct {
 	volume float64
 	err    error
+	// gotDistance is the distance the processor passed in, so a test can
+	// tell "never called" from "called with a zero distance".
+	gotDistance float64
 }
 
 func (f *fakeVolumeCalculator) Calculate(ctx context.Context, fluidDistance float64) (float64, error) {
+	f.gotDistance = fluidDistance
 	return f.volume, f.err
 }
 
@@ -69,7 +84,9 @@ func TestNewProcessTankUpdate(t *testing.T) {
 
 func TestProcessTankUpdate_Process(t *testing.T) {
 	timestamp := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	validData := []byte(`{"tank_id":"tank-1","event_type":"reading","distance":1.5,"timestamp":"` + timestamp.Format(time.RFC3339Nano) + `"}`)
+	validData := []byte(`{"event":"level","device":"tank-1","timestamp":"` +
+		timestamp.Format(time.RFC3339Nano) +
+		`","valid":true,"distance_cm":62.5,"uptime_s":360}`)
 
 	tests := []struct {
 		name           string
@@ -78,13 +95,47 @@ func TestProcessTankUpdate_Process(t *testing.T) {
 		getVolumeErr   error
 		updateErr      error
 		wantErr        bool
+		wantDistance   float64
 		wantUpdateCall *updateVolumeCall
 	}{
 		{
 			name:           "valid event updates volume with calculated value",
 			data:           validData,
 			calculator:     &fakeVolumeCalculator{volume: 42.5},
+			wantDistance:   62.5,
 			wantUpdateCall: &updateVolumeCall{tankID: "tank-1", volume: 42.5, updatedAt: timestamp},
+		},
+		{
+			name: "event without a timestamp is stamped on receipt",
+			data: []byte(`{"event":"level","device":"tank-1","valid":true,` +
+				`"distance_cm":62.5,"uptime_s":360}`),
+			calculator:     &fakeVolumeCalculator{volume: 42.5},
+			wantDistance:   62.5,
+			wantUpdateCall: &updateVolumeCall{tankID: "tank-1", volume: 42.5, updatedAt: receivedAt},
+		},
+		{
+			name: "invalid reading stores nothing",
+			data: []byte(`{"event":"level","device":"tank-1","timestamp":"` +
+				timestamp.Format(time.RFC3339Nano) +
+				`","valid":false,"distance_cm":null,"reason":"sensor_unreadable"}`),
+			calculator: &fakeVolumeCalculator{volume: 42.5},
+		},
+		{
+			name: "node offline last will stores nothing",
+			data: []byte(`{"event":"level","device":"tank-1","valid":false,` +
+				`"distance_cm":null,"reason":"node_offline"}`),
+			calculator: &fakeVolumeCalculator{volume: 42.5},
+		},
+		{
+			name: "reading flagged valid with a null distance stores nothing",
+			data: []byte(`{"event":"level","device":"tank-1","valid":true,` +
+				`"distance_cm":null}`),
+			calculator: &fakeVolumeCalculator{volume: 42.5},
+		},
+		{
+			name:       "event of another type is a no-op",
+			data:       []byte(`{"event":"pump","device":"pump-1","state":"on"}`),
+			calculator: &fakeVolumeCalculator{volume: 42.5},
 		},
 		{
 			name:    "invalid json returns error",
@@ -98,10 +149,11 @@ func TestProcessTankUpdate_Process(t *testing.T) {
 			wantErr:      true,
 		},
 		{
-			name:       "error from calculator propagates",
-			data:       validData,
-			calculator: &fakeVolumeCalculator{err: errors.New("bad dimensions")},
-			wantErr:    true,
+			name:         "error from calculator propagates",
+			data:         validData,
+			calculator:   &fakeVolumeCalculator{err: errors.New("bad dimensions")},
+			wantDistance: 62.5,
+			wantErr:      true,
 		},
 		{
 			name:           "error from repository propagates",
@@ -109,6 +161,7 @@ func TestProcessTankUpdate_Process(t *testing.T) {
 			calculator:     &fakeVolumeCalculator{volume: 10.0},
 			updateErr:      errors.New("db down"),
 			wantErr:        true,
+			wantDistance:   62.5,
 			wantUpdateCall: &updateVolumeCall{tankID: "tank-1", volume: 10.0, updatedAt: timestamp},
 		},
 	}
@@ -134,6 +187,10 @@ func TestProcessTankUpdate_Process(t *testing.T) {
 				is.Equal([]updateVolumeCall{*tt.wantUpdateCall}, repo.calls)
 			} else {
 				is.Empty(repo.calls)
+			}
+
+			if tt.calculator != nil {
+				is.Equal(tt.wantDistance, tt.calculator.gotDistance)
 			}
 		})
 	}

@@ -4,11 +4,22 @@ import (
 	"archimedes-server/core/pump/interfaces"
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// receivedAt is what the processor stamps an event with when the device
+// published none of its own. Pinned before any test runs so the fallback
+// path is assertable and races cannot see a half-written clock.
+var receivedAt = time.Date(2026, 8, 21, 12, 30, 0, 0, time.UTC)
+
+func TestMain(m *testing.M) {
+	timeNow = func() time.Time { return receivedAt }
+	os.Exit(m.Run())
+}
 
 var _ interfaces.IUpdatePumpStatus = (*fakeUpdatePumpStatus)(nil)
 
@@ -53,6 +64,7 @@ func TestNewProcessPumpStatusUpdate(t *testing.T) {
 
 func TestProcessPumpUpdate_Process(t *testing.T) {
 	timestamp := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	stamp := timestamp.Format(time.RFC3339Nano)
 
 	tests := []struct {
 		name      string
@@ -63,19 +75,33 @@ func TestProcessPumpUpdate_Process(t *testing.T) {
 		wantStop  []stopCall
 	}{
 		{
-			name:      "start event calls StartPump",
-			data:      []byte(`{"pump_id":"pump-1","event_type":"start","timestamp":"` + timestamp.Format(time.RFC3339Nano) + `"}`),
+			name: "pump on starts a run",
+			data: []byte(`{"event":"pump","device":"pump-1","timestamp":"` + stamp +
+				`","state":"on","reason":"flow_confirmed","flow_lpm":11.4,` +
+				`"tank_state":"not_full","uptime_s":338}`),
 			wantStart: []startCall{{pumpID: "pump-1", timestamp: timestamp}},
 		},
 		{
-			name:     "stop event calls StopPump with reason",
-			data:     []byte(`{"pump_id":"pump-2","event_type":"stop","timestamp":"` + timestamp.Format(time.RFC3339Nano) + `","stop_reason":"manual"}`),
-			wantStop: []stopCall{{pumpID: "pump-2", timestamp: timestamp, stopReason: "manual"}},
+			name: "pump off stops the run with its reason",
+			data: []byte(`{"event":"pump","device":"pump-2","timestamp":"` + stamp +
+				`","state":"off","reason":"tank_full","flow_lpm":0.0,` +
+				`"tank_state":"full","uptime_s":607}`),
+			wantStop: []stopCall{{pumpID: "pump-2", timestamp: timestamp, stopReason: "tank_full"}},
 		},
 		{
-			name:    "unknown event type is a no-op",
-			data:    []byte(`{"pump_id":"pump-3","event_type":"unknown"}`),
-			wantErr: false,
+			name: "event without a timestamp is stamped on receipt",
+			data: []byte(`{"event":"pump","device":"pump-1","state":"on",` +
+				`"reason":"flow_confirmed","flow_lpm":11.4,"uptime_s":338}`),
+			wantStart: []startCall{{pumpID: "pump-1", timestamp: receivedAt}},
+		},
+		{
+			name: "unknown state from the controller last will is a no-op",
+			data: []byte(`{"event":"pump","device":"pump-3","state":"unknown",` +
+				`"reason":"controller_offline"}`),
+		},
+		{
+			name: "event of another type is a no-op",
+			data: []byte(`{"event":"level","device":"tank-1","valid":true,"distance_cm":62.5}`),
 		},
 		{
 			name:    "invalid json returns error",
@@ -83,18 +109,20 @@ func TestProcessPumpUpdate_Process(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:      "repository error on start propagates",
-			data:      []byte(`{"pump_id":"pump-1","event_type":"start","timestamp":"` + timestamp.Format(time.RFC3339Nano) + `"}`),
+			name: "repository error on start propagates",
+			data: []byte(`{"event":"pump","device":"pump-1","timestamp":"` + stamp +
+				`","state":"on","reason":"flow_confirmed"}`),
 			repoErr:   errors.New("db down"),
 			wantErr:   true,
 			wantStart: []startCall{{pumpID: "pump-1", timestamp: timestamp}},
 		},
 		{
-			name:     "repository error on stop propagates",
-			data:     []byte(`{"pump_id":"pump-2","event_type":"stop","timestamp":"` + timestamp.Format(time.RFC3339Nano) + `"}`),
+			name: "repository error on stop propagates",
+			data: []byte(`{"event":"pump","device":"pump-2","timestamp":"` + stamp +
+				`","state":"off","reason":"pipeline_dry"}`),
 			repoErr:  errors.New("db down"),
 			wantErr:  true,
-			wantStop: []stopCall{{pumpID: "pump-2", timestamp: timestamp, stopReason: ""}},
+			wantStop: []stopCall{{pumpID: "pump-2", timestamp: timestamp, stopReason: "pipeline_dry"}},
 		},
 	}
 

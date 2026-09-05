@@ -4,7 +4,7 @@
 
 ## Overview
 
-Archimedes-server subscribes to two MQTT topics: one carrying water tank sensor distance readings, the other carrying pump start/stop events. It converts each tank reading into a volume using the tank's registered shape and dimensions, writes the result to PostgreSQL, and records pump run history. A separate HTTP server exposes everything it has stored through read-only endpoints. The codebase follows a hexagonal layout: `core/` holds domain types, interfaces, and use cases with no dependency on any concrete adapter; `adapters/` implements those interfaces against PostgreSQL, MQTT, HTTP, and file logging.
+Archimedes-server subscribes to two MQTT topics: one carrying water tank sensor distance readings, the other carrying pump on/off transitions. Both payloads are fixed by MQTT_CONTRACT.md, mirrored in all four repositories of the system (tank-node, pump-ctl, scheduled-valve, archimedes-server): every message shares an `event`/`device`/`timestamp`/`uptime_s` envelope, a tank reading adds `valid` and a nullable `distance_cm` in centimetres, and a pump event adds `state` ("on"/"off"/"unknown"), `reason` and the `tank_state` the controller was acting on. This server is the only subscriber to the tank's level topic; the pump controller receives a separate `full_tank` event carrying the derived state ("full"/"not_full"/"unknown") without the distance behind it. It converts each tank reading into a volume using the tank's registered shape and dimensions, writes the result to PostgreSQL, and records pump run history. A separate HTTP server exposes everything it has stored through read-only endpoints. The codebase follows a hexagonal layout: `core/` holds domain types, interfaces, and use cases with no dependency on any concrete adapter; `adapters/` implements those interfaces against PostgreSQL, MQTT, HTTP, and file logging.
 
 ## Key Concepts
 
@@ -20,7 +20,8 @@ Archimedes-server subscribes to two MQTT topics: one carrying water tank sensor 
 - `core/tank/domain.Tank`, `core/tank/domain.TankStatus` — tank identity and latest volume reading.
 - `core/pump/domain.Pump`, `core/pump/domain.PumpStatus` — pump identity and one run (start/stop) record.
 - `core/volume/domain.Shape` — tank shape identifier stored in PostgreSQL (`cylindrical_cone`).
-- `core/processor/domain.WaterTankEvent`, `core/processor/domain.PumpEvent` — the JSON payloads carried on the MQTT topics.
+- `core/processor/domain.Envelope` — the `event`/`device`/`timestamp`/`uptime_s` fields every device event shares; `At` resolves the record time, falling back to receipt time when the device had no synced clock.
+- `core/processor/domain.WaterTankEvent`, `core/processor/domain.PumpEvent` — the JSON payloads carried on the MQTT topics, both embedding `Envelope`. `WaterTankEvent.Reading` returns a distance only when the node flagged it valid, so an unreadable sensor stores nothing rather than a zero distance.
 
 ### Core Interfaces
 
@@ -28,7 +29,7 @@ Archimedes-server subscribes to two MQTT topics: one carrying water tank sensor 
 - `core/pump/interfaces.IReadPumpStatus` / `IUpdatePumpStatus` — read and write pump run data.
 - `core/volume/interfaces.IGetVolumeType` — resolve a tank's `IVolumeCalculator` from its stored shape.
 - `core/volume/interfaces.IVolumeCalculator` — compute a volume from a sensor distance reading.
-- `core/processor/interfaces.IProcessStream` — handle one raw MQTT message.
+- `core/processor/interfaces.IProcessStream` — handle one raw MQTT message. The stream consumer drops retained messages before calling it: every processor records an event that happened, and a clean-session reconnect replays retained messages.
 
 ### HTTP Endpoints (adapters/endpoint/http)
 
@@ -45,6 +46,10 @@ Archimedes-server subscribes to two MQTT topics: one carrying water tank sensor 
 
 Implement `core/volume/interfaces.IVolumeCalculator` in a new package under `core/volume/usecases/`, then register the shape's `domain.Shape` value in `adapters/database/postgresql.getVolumeType.GetVolumeFromShape`'s switch statement.
 
+### Changing an event payload
+
+The payloads are a contract with firmware, not this server's to change alone. Update MQTT_CONTRACT.md, the publishing repository (tank-node or pump-ctl), and `core/processor/domain` in the same change; adding a field is backwards compatible, renaming or retyping one is not.
+
 ### Adding a new MQTT-driven use case
 
 Implement `core/processor/interfaces.IProcessStream`, wire a new `adapters/stream/mqtt.NewStreamConsumer` in `main.go` pointed at the relevant topic, and start it on its own goroutine alongside the existing tank/pump consumers.
@@ -53,4 +58,5 @@ Implement `core/processor/interfaces.IProcessStream`, wire a new `adapters/strea
 
 - Repository: https://github.com/archimedes-water-pump-automation/archimedes-server
 - README: [README.md](./README.md)
+- MQTT event contract: [MQTT_CONTRACT.md](./MQTT_CONTRACT.md)
 - Issues: https://github.com/archimedes-water-pump-automation/archimedes-server/issues
