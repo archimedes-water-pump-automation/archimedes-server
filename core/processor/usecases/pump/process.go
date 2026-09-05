@@ -9,7 +9,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 )
+
+// timeNow is the clock used to stamp events that reached this server
+// without a timestamp of their own. A variable so tests can pin it.
+var timeNow = time.Now
 
 // ProcessPumpUpdate implements
 // archimedes-server/core/processor/interfaces.IProcessStream for the pump
@@ -26,10 +31,16 @@ func NewProcessPumpStatusUpdate(repository interfaces.IUpdatePumpStatus) *Proces
 	}
 }
 
-// Process unmarshals data as a processor domain.PumpEvent and starts or
-// stops the pump's run accordingly. Unrecognized EventType values are
-// logged and ignored rather than treated as an error, since the topic may
-// carry event types this processor doesn't yet handle.
+// Process unmarshals data as a processor domain.PumpEvent and opens or
+// closes the pump's run according to the state it reports, storing the
+// event's reason as the stop reason.
+//
+// A state of "unknown" is the controller's last will and stores nothing:
+// it says the controller became unreachable, not that the pump stopped,
+// and closing a run on it would put a fabricated stop time in the
+// history. Other unrecognized states and non-pump events are logged and
+// ignored for the same reason, since the topic may carry event types
+// this processor doesn't yet handle.
 func (u *ProcessPumpUpdate) Process(ctx context.Context, data []byte) error {
 	var event domain.PumpEvent
 
@@ -39,23 +50,30 @@ func (u *ProcessPumpUpdate) Process(ctx context.Context, data []byte) error {
 		return err
 	}
 
-	log.Log(fmt.Sprintf("%s event received: %q", event.EventType, data))
+	log.Log(fmt.Sprintf("%s event received: %q", event.Event, data))
 
-	switch event.EventType {
-	case "start":
-		err = u.repository.StartPump(ctx, event.PumpID, event.Timestamp)
+	if event.Event != domain.EventPump {
+		log.Log(fmt.Sprintf("unknown event type: %q", event.Event))
+		return nil
+	}
+
+	timestamp := event.At(timeNow().UTC())
+
+	switch event.State {
+	case domain.PumpStateOn:
+		err = u.repository.StartPump(ctx, event.Device, timestamp)
 		if err != nil {
 			log.Log(fmt.Sprintf("error on starting pump: %q", err.Error()))
 			return err
 		}
-	case "stop":
-		err = u.repository.StopPump(ctx, event.PumpID, event.Timestamp, event.StopReason)
+	case domain.PumpStateOff:
+		err = u.repository.StopPump(ctx, event.Device, timestamp, event.Reason)
 		if err != nil {
 			log.Log(fmt.Sprintf("error on stopping pump: %q", err.Error()))
 			return err
 		}
 	default:
-		log.Log(fmt.Sprintf("unknown event type: %q", event.EventType))
+		log.Log(fmt.Sprintf("unknown pump state: %q (%q)", event.State, event.Reason))
 		return nil
 	}
 

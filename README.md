@@ -15,8 +15,9 @@ Archimedes is a backend service for monitoring water tanks and the pumps that fi
   PostgreSQL ──▶ read repositories ──▶ HTTP API (adapters/endpoint/http)
 ```
 
-- A **tank** event carries a raw sensor `distance` reading. The tank processor looks up the tank's registered shape (currently `cylindrical_cone`) and dimensions, converts the distance into a volume, and updates the tank's stored volume.
-- A **pump** event is a `start` or `stop` notification. The pump processor opens or closes a run in the pump's status history.
+- A **tank** event carries a sensor `distance_cm` reading published by [`tank-node`](https://github.com/archimedes-water-pump-automation/tank-node). The tank processor looks up the tank's registered shape (currently `cylindrical_cone`) and dimensions, converts the distance into a volume, and updates the tank's stored volume. A reading the node flagged invalid stores nothing — `distance_cm` is then `null`, and treating that as zero would record a tank filled to the sensor.
+- A **pump** event is a `state` transition published by [`pump-ctl`](https://github.com/archimedes-water-pump-automation/pump-ctl). The pump processor opens a run on `"on"` and closes it on `"off"`, storing the event's `reason` as the stop reason.
+- Both payloads are fixed by [MQTT_CONTRACT.md](MQTT_CONTRACT.md), which is mirrored in all four repositories of this system. Changing a field here means changing it in the firmware that publishes it.
 - The HTTP API only reads what the processors have written — there are no write endpoints.
 
 ## 🚀 Getting Started
@@ -35,8 +36,8 @@ Configure the process through environment variables and run it:
 export DB_CONN_STRING="postgres://user:pass@localhost:5432/archimedes"
 export DB_TLS_ENABLED=false
 export MQTT_BROKER_URL="tcp://localhost:1883"
-export WATER_TANK_TOPIC="archimedes/tank"
-export PUMP_STATUS_TOPIC="archimedes/pump"
+export WATER_TANK_TOPIC="watertank/tank-01/level"
+export PUMP_STATUS_TOPIC="watertank/pump-01/pump"
 export LOG_FILE="./archimedes.log"
 
 ./archimedes-server
@@ -51,30 +52,46 @@ The server starts an HTTP server on port `8080` and blocks until it receives `SI
 | `DB_CONN_STRING` | PostgreSQL connection string (pgx format). |
 | `DB_TLS_ENABLED` | `true` to connect over TLS with certificate verification skipped (for providers with managed certs the client can't validate). |
 | `MQTT_BROKER_URL` | Broker URL, e.g. `tcp://host:1883`. |
-| `WATER_TANK_TOPIC` | Topic the tank stream consumer subscribes to. |
-| `PUMP_STATUS_TOPIC` | Topic the pump stream consumer subscribes to. |
+| `WATER_TANK_TOPIC` | Topic the tank stream consumer subscribes to, e.g. `watertank/tank-01/level`. |
+| `PUMP_STATUS_TOPIC` | Topic the pump stream consumer subscribes to, e.g. `watertank/pump-01/pump`. |
 | `LOG_FILE` | Path to the file the process appends log lines to. |
 
 ## ✨ Features
 
 ### MQTT ingestion
 
-Two independent consumers, each on its own goroutine, subscribe at QoS 1 to the tank and pump topics and hand every message off to a use case:
+Two independent consumers, each on its own goroutine, subscribe at QoS 1 to the tank and pump topics and hand every message off to a use case. Every message on every topic shares an envelope — `event`, `device`, and an optional `timestamp` and `uptime_s` — followed by the fields of the event itself:
 
 ```jsonc
-// Water tank event
-{ "tank_id": "…", "event_type": "reading", "distance": 1.42, "timestamp": "2026-08-21T10:00:00Z" }
+// Water tank level reading, from tank-node
+{ "event": "level", "device": "tank-01", "timestamp": "2026-09-05T03:10:12Z",
+  "valid": true, "distance_cm": 62.5, "uptime_s": 360 }
 
-// Pump event
-{ "pump_id": "…", "event_type": "start", "timestamp": "2026-08-21T10:00:00Z" }
-{ "pump_id": "…", "event_type": "stop", "stop_reason": "tank full", "timestamp": "2026-08-21T10:05:00Z" }
+// Sensor unreadable, or the node's last will: stored as nothing at all
+{ "event": "level", "device": "tank-01", "valid": false,
+  "distance_cm": null, "reason": "sensor_unreadable" }
+
+// Pump transitions, from pump-ctl
+{ "event": "pump", "device": "pump-01", "timestamp": "2026-09-05T03:10:12Z",
+  "state": "on", "reason": "flow_confirmed", "flow_lpm": 11.40,
+  "distance_cm": 62.5, "uptime_s": 338 }
+{ "event": "pump", "device": "pump-01", "timestamp": "2026-09-05T03:14:41Z",
+  "state": "off", "reason": "tank_full", "flow_lpm": 0.0,
+  "distance_cm": 11.8, "uptime_s": 607 }
 ```
+
+`device` is the key each event is stored against: it must match the tank's or pump's `id` in the database.
+
+`timestamp` is UTC and optional, because the publishing boards have no battery-backed RTC and a last will is published by the broker rather than by the device. When it is absent the server records the moment it received the message, which is the closest true answer available.
+
+A pump event with `"state": "unknown"` is the controller's last will. It is logged and stored as nothing: an unreachable controller is not a stopped pump, and closing a run on it would put a fabricated stop time in the history.
 
 ### Volume calculation
 
 Each tank has a `tank_shape` and a `dimensions` JSON object stored in PostgreSQL. `core/volume` resolves the shape to an `IVolumeCalculator` implementation; today that's `cylindrical_cone`, which models a vertical cylinder with a partial cone at the bottom:
 
 - `bigger_radius`, `incline_angle`, `cylindrical_height`, `conical_height` — validated against a JSON Schema before use.
+- **Stored in centimetres**, matching the `distance_cm` on the wire: the calculator works in whatever unit it is given, so a tank measured in metres and a sensor reporting centimetres would produce a volume that is wrong by six orders of magnitude.
 - The reported volume is the sum of the fluid held in the cylindrical section and whatever portion of the cone is submerged.
 
 Adding a new shape means implementing `core/volume/interfaces.IVolumeCalculator` and registering it in `adapters/database/postgresql.getVolumeType.GetVolumeFromShape`.
