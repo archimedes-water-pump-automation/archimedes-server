@@ -78,14 +78,14 @@ func TestProcessPumpUpdate_Process(t *testing.T) {
 			name: "pump on starts a run",
 			data: []byte(`{"event":"pump","device":"pump-1","timestamp":"` + stamp +
 				`","state":"on","reason":"flow_confirmed","flow_lpm":11.4,` +
-				`"distance_cm":62.5,"uptime_s":338}`),
+				`"tank_state":"refillable","uptime_s":338}`),
 			wantStart: []startCall{{pumpID: "pump-1", timestamp: timestamp}},
 		},
 		{
 			name: "pump off stops the run with its reason",
 			data: []byte(`{"event":"pump","device":"pump-2","timestamp":"` + stamp +
 				`","state":"off","reason":"tank_full","flow_lpm":0.0,` +
-				`"distance_cm":11.8,"uptime_s":607}`),
+				`"tank_state":"full","uptime_s":607}`),
 			wantStop: []stopCall{{pumpID: "pump-2", timestamp: timestamp, stopReason: "tank_full"}},
 		},
 		{

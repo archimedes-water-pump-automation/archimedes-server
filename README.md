@@ -15,7 +15,7 @@ Archimedes is a backend service for monitoring water tanks and the pumps that fi
   PostgreSQL ──▶ read repositories ──▶ HTTP API (adapters/endpoint/http)
 ```
 
-- A **tank** event carries a sensor `distance_cm` reading published by [`tank-node`](https://github.com/archimedes-water-pump-automation/tank-node). The tank processor looks up the tank's registered shape (currently `cylindrical_cone`) and dimensions, converts the distance into a volume, and updates the tank's stored volume. A reading the node flagged invalid stores nothing — `distance_cm` is then `null`, and treating that as zero would record a tank filled to the sensor.
+- A **tank** event carries a sensor `distance_cm` reading published by [`tank-node`](https://github.com/archimedes-water-pump-automation/tank-node), to this server and to no one else. The tank processor looks up the tank's registered shape (currently `cylindrical_cone`) and dimensions, converts the distance into a volume, and updates the tank's stored volume. A reading the node flagged invalid stores nothing — `distance_cm` is then `null`, and treating that as zero would record a tank filled to the sensor.
 - A **pump** event is a `state` transition published by [`pump-ctl`](https://github.com/archimedes-water-pump-automation/pump-ctl). The pump processor opens a run on `"on"` and closes it on `"off"`, storing the event's `reason` as the stop reason.
 - Both payloads are fixed by [MQTT_CONTRACT.md](MQTT_CONTRACT.md), which is mirrored in all four repositories of this system. Changing a field here means changing it in the firmware that publishes it.
 - The HTTP API only reads what the processors have written — there are no write endpoints.
@@ -74,13 +74,15 @@ Two independent consumers, each on its own goroutine, subscribe at QoS 1 to the 
 // Pump transitions, from pump-ctl
 { "event": "pump", "device": "pump-01", "timestamp": "2026-09-05T03:10:12Z",
   "state": "on", "reason": "flow_confirmed", "flow_lpm": 11.40,
-  "distance_cm": 62.5, "uptime_s": 338 }
+  "tank_state": "refillable", "uptime_s": 338 }
 { "event": "pump", "device": "pump-01", "timestamp": "2026-09-05T03:14:41Z",
   "state": "off", "reason": "tank_full", "flow_lpm": 0.0,
-  "distance_cm": 11.8, "uptime_s": 607 }
+  "tank_state": "full", "uptime_s": 607 }
 ```
 
 `device` is the key each event is stored against: it must match the tank's or pump's `id` in the database.
+
+`tank_state` is what the tank node told the controller, not what the controller measured: the distance stays between `tank-node` and this server, while `pump-ctl` receives only the state derived from it on a separate topic. This server is the only subscriber to the level topic.
 
 `timestamp` is UTC and optional, because the publishing boards have no battery-backed RTC and a last will is published by the broker rather than by the device. When it is absent the server records the moment it received the message, which is the closest true answer available.
 
