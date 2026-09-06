@@ -90,7 +90,10 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	server := http.Serve("8080", readTankRepository, postgresql.NewReadPumpStatusRepository(pool))
+	server, err := http.Serve("8080", readTankRepository, postgresql.NewReadPumpStatusRepository(pool))
+	if err != nil {
+		panic(err)
+	}
 	defer func() {
 		log.Log("Shutting down HTTP server...")
 		server.Close()
