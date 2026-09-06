@@ -49,10 +49,19 @@ func (p *archimedesPool) ReadArchimedes(ctx context.Context, dst any, query stri
 }
 
 // WriteArchimedes acquires a connection and runs query for its side
-// effects. It only reports errors from acquiring the connection or
-// executing the query itself; it does not scan or check the result rows,
-// so an UPDATE/INSERT whose WHERE clause matches nothing succeeds silently
-// rather than returning a not-found error.
+// effects, reporting anything the database rejected it for: a constraint
+// violation, a missing relation, a trigger raising.
+//
+// It uses Exec rather than Query even for the RETURNING clauses the write
+// statements carry. Query reports only the errors raised before execution
+// begins, and surfaces the rest through the rows — so a write whose rows
+// are never read comes back as a success, and an event the database
+// refused would be recorded nowhere and logged by no one.
+//
+// What it still does not report is a write that was accepted and matched
+// nothing: an UPDATE/INSERT whose WHERE clause selects no row succeeds
+// silently rather than returning a not-found error, which is what lets
+// StopPump ignore a pump with no open run.
 func (p *archimedesPool) WriteArchimedes(ctx context.Context, query string, args ...any) error {
 	connection, err := p.Acquire(ctx)
 	if err != nil {
@@ -60,11 +69,10 @@ func (p *archimedesPool) WriteArchimedes(ctx context.Context, query string, args
 	}
 	defer connection.Release()
 
-	rows, err := connection.Query(ctx, query, args...)
+	_, err = connection.Exec(ctx, query, args...)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
 	return nil
 }
